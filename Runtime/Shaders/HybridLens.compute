@@ -1,0 +1,14 @@
+#pragma kernel NormalCompaction
+
+Texture2D<float4> _LensNormalBuffer;
+AppendStructuredBuffer<uint2> _ActivePixelsBuffer;
+
+[numthreads(8, 8, 1)]
+void NormalCompaction(uint3 id : SV_DispatchThreadID)
+{
+    float mask = _LensNormalBuffer[id.xy].a;
+    if (mask > 0.5)
+    {
+        _ActivePixelsBuffer.Append(id.xy);
+    }
+}
