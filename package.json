@@ -1,0 +1,15 @@
+{
+    "name": "com.callumnicholson.raytrace-glass-urp",
+    "version": "1.0.0",
+    "displayName": "Hybrid Raytraced Glass URP",
+    "unity": "6000.4",
+    "author":
+    {
+        "name": "Callum Nicholson",
+        "email": "nicholson.callum@spark-creative.co.jp"
+    },
+    "dependencies":
+    {
+      "com.callumnicholson.urp-portfolio-common": "1.0.0"
+    }
+}
