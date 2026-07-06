@@ -1,7 +1,14 @@
 #pragma kernel NormalCompaction
+#pragma kernel ClearOutput
+#pragma kernel ArgsSetup
+#pragma kernel TraceLens
 
 Texture2D<float4> _LensNormalBuffer;
-AppendStructuredBuffer<uint2> _ActivePixelsBuffer;
+RWTexture2D<float4> _RayTraceOutput;
+
+RWStructuredBuffer<uint> _IndirectArgsBuffer;
+StructuredBuffer<uint2> _ActivePixelsBufferRead;
+AppendStructuredBuffer<uint2> _ActivePixelsBufferWrite;
 
 [numthreads(8, 8, 1)]
 void NormalCompaction(uint3 id : SV_DispatchThreadID)
@@ -9,6 +16,35 @@ void NormalCompaction(uint3 id : SV_DispatchThreadID)
     float mask = _LensNormalBuffer[id.xy].a;
     if (mask > 0.5)
     {
-        _ActivePixelsBuffer.Append(id.xy);
+        _ActivePixelsBufferWrite.Append(id.xy);
     }
+}
+
+[numthreads(8, 8, 1)]
+void ClearOutput(uint3 id : SV_DispatchThreadID)
+{
+    _RayTraceOutput[id.xy] = 0.0;
+}
+
+[numthreads(1, 1, 1)]
+void ArgsSetup(uint3 id : SV_DispatchThreadID)
+{
+    uint rawCount = _IndirectArgsBuffer[3];
+
+    _IndirectArgsBuffer[0] = (rawCount + 64 - 1) / 64;
+    _IndirectArgsBuffer[1] = 1;
+    _IndirectArgsBuffer[2] = 1;
+}
+
+[numthreads(64, 1, 1)]
+void TraceLens(uint3 id : SV_DispatchThreadID)
+{
+    uint activePixelCount = _IndirectArgsBuffer[3];
+    if (id.x >= activePixelCount) return;
+
+    uint2 uv = _ActivePixelsBufferRead[id.x];
+    float4 normalColor = _LensNormalBuffer[uv];
+
+    // This is where the actual calculations should occur
+    _RayTraceOutput[uv] = normalColor;
 }
