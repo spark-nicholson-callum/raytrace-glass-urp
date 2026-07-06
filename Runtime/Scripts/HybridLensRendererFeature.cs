@@ -1,3 +1,4 @@
+using System.Linq;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
@@ -152,12 +153,16 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
         private int setupKernel;
         private int traceKernel;
 
-        public TracePass(ComputeShader shader)
+        private RayTracingAccelerationStructure rtas;
+
+        public TracePass(ComputeShader shader, RayTracingAccelerationStructure rtas)
         {
             lensCompute = shader;
             clearKernel = lensCompute.FindKernel("ClearOutput");
             setupKernel = lensCompute.FindKernel("ArgsSetup");
             traceKernel = lensCompute.FindKernel("TraceLens");
+
+            this.rtas = rtas;
         }
 
         private class PassData
@@ -177,6 +182,8 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
             public BufferHandle ArgsBuffer;
 
             public Matrix4x4 InverseViewProj;
+            public RayTracingAccelerationStructure Rtas;
+            public Vector3 CameraPos;
         }
 
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
@@ -234,8 +241,13 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
                 Matrix4x4 projMatrix = GL.GetGPUProjectionMatrix(cameraData.GetProjectionMatrix(), true);
                 passData.InverseViewProj = (projMatrix * viewMatrix).inverse;
 
+                passData.Rtas = rtas;
+                passData.CameraPos = cameraData.worldSpaceCameraPos;
+
                 builder.SetRenderFunc(static (PassData data, ComputeGraphContext context) =>
                 {
+                    context.cmd.BuildRayTracingAccelerationStructure(data.Rtas);
+
                     // Clear the output texture
                     context.cmd.SetComputeTextureParam(data.Compute, data.ClearKernel, "_RayTraceOutput", data.OutputTexture);
                     context.cmd.DispatchCompute(data.Compute, data.ClearKernel, data.ClearGroupsX, data.ClearGroupsY, 1);
@@ -254,6 +266,8 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
                     context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_IndirectArgsBuffer", data.ArgsBuffer);
 
                     context.cmd.SetComputeMatrixParam(data.Compute, "_InverseViewProjMatrix", data.InverseViewProj);
+                    context.cmd.SetRayTracingAccelerationStructure(data.Compute, data.TraceKernel, "_SceneRtas", data.Rtas);
+                    context.cmd.SetComputeVectorParam(data.Compute, "_CameraPos", data.CameraPos);
 
                     context.cmd.DispatchCompute(data.Compute, data.TraceKernel, data.ArgsBuffer, 0);
                 });
@@ -321,26 +335,59 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
     private TracePass tracePass;
     private ProjectorPass projectorPass;
 
+    private RayTracingAccelerationStructure rtas;
+
     public override void Create()
     {
         if (lensComputeShader == null) return;
+        if (!SystemInfo.supportsRayTracing)
+        {
+            Debug.LogWarning("HybridLensFeature: Hardware Ray Tracing is not suppported!");
+            return;
+        }
 
+        // Set up the RTAS
+        var settings = new RayTracingAccelerationStructure.Settings();
+        rtas = new RayTracingAccelerationStructure(settings);
+
+        // Just grab every Instance for now
+        Renderer[] allRenderers = GameObject.FindObjectsByType<Renderer>();
+        foreach (var renderer in allRenderers)
+        {
+            var subMeshFlags = Enumerable.Range(0, renderer.sharedMaterials.Length)
+                .Select(x => RayTracingSubMeshFlags.Enabled)
+                .ToArray();
+
+            rtas.AddInstance(renderer, subMeshFlags, false);
+        }
+
+        // Set up passes
         gatherPass = new GatherPass();
         gatherPass.renderPassEvent = RenderPassEvent.AfterRenderingOpaques;
 
         compactionPass = new CompactionPass(lensComputeShader);
         compactionPass.renderPassEvent = RenderPassEvent.AfterRenderingOpaques + 1;
 
-        tracePass = new TracePass(lensComputeShader);
+        tracePass = new TracePass(lensComputeShader, rtas);
         tracePass.renderPassEvent = RenderPassEvent.AfterRenderingOpaques + 2;
 
         projectorPass = new ProjectorPass();
         projectorPass.renderPassEvent = RenderPassEvent.AfterRenderingSkybox;
     }
 
+    protected override void Dispose(bool disposing)
+    {
+        if (rtas != null) rtas.Release();
+    }
+
     public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
     {
         if (lensComputeShader == null) return;
+        if (!SystemInfo.supportsRayTracing)
+        {
+            Debug.LogWarning("HybridLensFeature: Hardware Ray Tracing is not suppported!");
+            return;
+        }
 
         /* switch (renderingData.cameraData.cameraType) */
         /* { */

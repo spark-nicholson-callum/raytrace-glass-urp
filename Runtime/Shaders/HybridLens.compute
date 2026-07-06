@@ -3,6 +3,8 @@
 #pragma kernel ArgsSetup
 #pragma kernel TraceLens
 
+#pragma multi_compile _ UNITY_DEVICE_SUPPORTS_INLINE_RAY_TRACING
+
 Texture2D<float4> _LensNormalBuffer;
 Texture2D<float> _CameraDepthTexture;
 RWTexture2D<float4> _RayTraceOutput;
@@ -12,6 +14,10 @@ StructuredBuffer<uint2> _ActivePixelsBufferRead;
 AppendStructuredBuffer<uint2> _ActivePixelsBufferWrite;
 
 float4x4 _InverseViewProjMatrix;
+#if UNITY_DEVICE_SUPPORTS_INLINE_RAY_TRACING
+RaytracingAccelerationStructure _SceneRtas;
+#endif
+float3 _CameraPos;
 
 [numthreads(8, 8, 1)]
 void NormalCompaction(uint3 id : SV_DispatchThreadID)
@@ -46,18 +52,45 @@ void TraceLens(uint3 id : SV_DispatchThreadID)
     if (id.x >= activePixelCount) return;
 
     uint2 frag = _ActivePixelsBufferRead[id.x];
-    float4 normalColor = _LensNormalBuffer[frag];
-    float depth = _CameraDepthTexture[frag];
 
+    float3 normal = _LensNormalBuffer[frag].xyz * 2.0 - 1.0;
+    float rawDepth = _CameraDepthTexture[frag];
+
+    // Reconstruct world position
     uint width, height;
     _CameraDepthTexture.GetDimensions(width, height);
     float2 uv = (float2(frag) + 0.5) / float2(width, height);
     float2 ndc = uv * 2.0 - 1.0;
     ndc.y = -ndc.y;
-    float4 clipPos = float4(ndc.x, ndc.y, depth, 1.0);
+    float4 clipPos = float4(ndc.x, ndc.y, rawDepth, 1.0);
     float4 worldPos = mul(_InverseViewProjMatrix, clipPos);
-    worldPos.xyz /= worldPos.w;
+    worldPos /= worldPos.w;
 
-    // This is where the actual calculations should occur
-    _RayTraceOutput[frag] = float4(frac(worldPos.xyz), 1.0);
+    // For now lets just do a reflection to test
+#if UNITY_DEVICE_SUPPORTS_INLINE_RAY_TRACING
+    float3 viewDir = normalize(worldPos.xyz - _CameraPos);
+    float3 rayDir = reflect(viewDir, normal);
+
+    RayDesc ray;
+    ray.Origin = worldPos.xyz + normal * 0.01;
+    ray.Direction = rayDir;
+    ray.TMin = 0.01;
+    ray.TMax = 100.0;
+
+    RayQuery<RAY_FLAG_NONE> q;
+    q.TraceRayInline(_SceneRtas, RAY_FLAG_NONE, 0xff, ray);
+    while (q.Proceed());
+    if (q.CommittedStatus() == COMMITTED_TRIANGLE_HIT)
+    {
+        // Render objects green
+        _RayTraceOutput[frag] = float4(0.0, 1.0, 0.0, 1.0);
+    }
+    else
+    {
+        // Render sky blue
+        _RayTraceOutput[frag] = float4(0.0, 0.0, 1.0, 1.0);
+    }
+#else
+    _RayTraceOutput[frag] = float4(_LensNormalBuffer[frag].xyz, 1.0);
+#endif
 }
