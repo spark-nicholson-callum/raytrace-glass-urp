@@ -66,6 +66,7 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
 
                 builder.UseRendererList(rendererListHandle);
                 builder.SetRenderAttachment(normalBufferHandle, 0, AccessFlags.Write);
+                builder.SetRenderAttachmentDepth(resourceData.activeDepthTexture, AccessFlags.Write);
 
                 builder.SetRenderFunc(static (PassData data, RasterGraphContext context) =>
                 {
@@ -170,15 +171,19 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
             public int ClearGroupsY;
 
             public TextureHandle NormalTexture;
+            public TextureHandle DepthTexture;
             public TextureHandle OutputTexture;
             public BufferHandle ActivePixelsBuffer;
             public BufferHandle ArgsBuffer;
+
+            public Matrix4x4 InverseViewProj;
         }
 
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
         {
-            var lensData   = frameData.Get<HybridLensData>();
-            var cameraData = frameData.Get<UniversalCameraData>();
+            var lensData     = frameData.Get<HybridLensData>();
+            var cameraData   = frameData.Get<UniversalCameraData>();
+            var resourceData = frameData.Get<UniversalResourceData>();
 
             int width = cameraData.cameraTargetDescriptor.width;
             int height = cameraData.cameraTargetDescriptor.height;
@@ -216,11 +221,18 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
                 builder.UseTexture(lensData.NormalBufferHandle, AccessFlags.Read);
                 passData.NormalTexture = lensData.NormalBufferHandle;
 
+                builder.UseTexture(resourceData.activeDepthTexture, AccessFlags.Read);
+                passData.DepthTexture = resourceData.activeDepthTexture;
+
                 builder.UseTexture(outputTextureHandle, AccessFlags.Write);
                 passData.OutputTexture = outputTextureHandle;
 
                 passData.ActivePixelsBuffer = builder.UseBuffer(lensData.ActivePixelsBufferHandle, AccessFlags.Read);
                 passData.ArgsBuffer = builder.UseBuffer(argsHandle, AccessFlags.Write);
+
+                Matrix4x4 viewMatrix = cameraData.GetViewMatrix();
+                Matrix4x4 projMatrix = GL.GetGPUProjectionMatrix(cameraData.GetProjectionMatrix(), true);
+                passData.InverseViewProj = (projMatrix * viewMatrix).inverse;
 
                 builder.SetRenderFunc(static (PassData data, ComputeGraphContext context) =>
                 {
@@ -236,9 +248,12 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
 
                     // Run the lens tracing kernel
                     context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_LensNormalBuffer", data.NormalTexture);
+                    context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_CameraDepthTexture", data.DepthTexture);
                     context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_RayTraceOutput", data.OutputTexture);
                     context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_ActivePixelsBufferRead", data.ActivePixelsBuffer);
                     context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_IndirectArgsBuffer", data.ArgsBuffer);
+
+                    context.cmd.SetComputeMatrixParam(data.Compute, "_InverseViewProjMatrix", data.InverseViewProj);
 
                     context.cmd.DispatchCompute(data.Compute, data.TraceKernel, data.ArgsBuffer, 0);
                 });

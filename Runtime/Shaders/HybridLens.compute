@@ -4,11 +4,14 @@
 #pragma kernel TraceLens
 
 Texture2D<float4> _LensNormalBuffer;
+Texture2D<float> _CameraDepthTexture;
 RWTexture2D<float4> _RayTraceOutput;
 
 RWStructuredBuffer<uint> _IndirectArgsBuffer;
 StructuredBuffer<uint2> _ActivePixelsBufferRead;
 AppendStructuredBuffer<uint2> _ActivePixelsBufferWrite;
+
+float4x4 _InverseViewProjMatrix;
 
 [numthreads(8, 8, 1)]
 void NormalCompaction(uint3 id : SV_DispatchThreadID)
@@ -42,9 +45,19 @@ void TraceLens(uint3 id : SV_DispatchThreadID)
     uint activePixelCount = _IndirectArgsBuffer[3];
     if (id.x >= activePixelCount) return;
 
-    uint2 uv = _ActivePixelsBufferRead[id.x];
-    float4 normalColor = _LensNormalBuffer[uv];
+    uint2 frag = _ActivePixelsBufferRead[id.x];
+    float4 normalColor = _LensNormalBuffer[frag];
+    float depth = _CameraDepthTexture[frag];
+
+    uint width, height;
+    _CameraDepthTexture.GetDimensions(width, height);
+    float2 uv = (float2(frag) + 0.5) / float2(width, height);
+    float2 ndc = uv * 2.0 - 1.0;
+    ndc.y = -ndc.y;
+    float4 clipPos = float4(ndc.x, ndc.y, depth, 1.0);
+    float4 worldPos = mul(_InverseViewProjMatrix, clipPos);
+    worldPos.xyz /= worldPos.w;
 
     // This is where the actual calculations should occur
-    _RayTraceOutput[uv] = normalColor;
+    _RayTraceOutput[frag] = float4(frac(worldPos.xyz), 1.0);
 }
