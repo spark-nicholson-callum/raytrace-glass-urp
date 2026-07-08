@@ -177,10 +177,12 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
 
             public TextureHandle NormalTexture;
             public TextureHandle DepthTexture;
+            public TextureHandle OpaqueTexture;
             public TextureHandle OutputTexture;
             public BufferHandle ActivePixelsBuffer;
             public BufferHandle ArgsBuffer;
 
+            public Matrix4x4 ViewProj;
             public Matrix4x4 InverseViewProj;
             public RayTracingAccelerationStructure Rtas;
             public Vector3 CameraPos;
@@ -231,6 +233,9 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
                 builder.UseTexture(resourceData.activeDepthTexture, AccessFlags.Read);
                 passData.DepthTexture = resourceData.activeDepthTexture;
 
+                builder.UseTexture(resourceData.activeColorTexture, AccessFlags.Read);
+                passData.OpaqueTexture = resourceData.activeColorTexture;
+
                 builder.UseTexture(outputTextureHandle, AccessFlags.Write);
                 passData.OutputTexture = outputTextureHandle;
 
@@ -239,7 +244,8 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
 
                 Matrix4x4 viewMatrix = cameraData.GetViewMatrix();
                 Matrix4x4 projMatrix = GL.GetGPUProjectionMatrix(cameraData.GetProjectionMatrix(), true);
-                passData.InverseViewProj = (projMatrix * viewMatrix).inverse;
+                passData.ViewProj = projMatrix * viewMatrix;
+                passData.InverseViewProj = passData.ViewProj.inverse;
 
                 passData.Rtas = rtas;
                 passData.CameraPos = cameraData.worldSpaceCameraPos;
@@ -261,10 +267,12 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
                     // Run the lens tracing kernel
                     context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_LensNormalBuffer", data.NormalTexture);
                     context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_CameraDepthTexture", data.DepthTexture);
+                    context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_CameraOpaqueTexture", data.OpaqueTexture);
                     context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_RayTraceOutput", data.OutputTexture);
                     context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_ActivePixelsBufferRead", data.ActivePixelsBuffer);
                     context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_IndirectArgsBuffer", data.ArgsBuffer);
 
+                    context.cmd.SetComputeMatrixParam(data.Compute, "_ViewProjMatrix", data.ViewProj);
                     context.cmd.SetComputeMatrixParam(data.Compute, "_InverseViewProjMatrix", data.InverseViewProj);
                     context.cmd.SetRayTracingAccelerationStructure(data.Compute, data.TraceKernel, "_SceneRtas", data.Rtas);
                     context.cmd.SetComputeVectorParam(data.Compute, "_CameraPos", data.CameraPos);

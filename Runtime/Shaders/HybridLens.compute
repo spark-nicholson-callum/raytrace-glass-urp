@@ -7,12 +7,16 @@
 
 Texture2D<float4> _LensNormalBuffer;
 Texture2D<float> _CameraDepthTexture;
+Texture2D<float4> _CameraOpaqueTexture;
 RWTexture2D<float4> _RayTraceOutput;
+
+SamplerState sampler_LinearClamp;
 
 RWStructuredBuffer<uint> _IndirectArgsBuffer;
 StructuredBuffer<uint2> _ActivePixelsBufferRead;
 AppendStructuredBuffer<uint2> _ActivePixelsBufferWrite;
 
+float4x4 _ViewProjMatrix;
 float4x4 _InverseViewProjMatrix;
 #if UNITY_DEVICE_SUPPORTS_INLINE_RAY_TRACING
 RaytracingAccelerationStructure _SceneRtas;
@@ -45,6 +49,51 @@ void ArgsSetup(uint3 id : SV_DispatchThreadID)
     _IndirectArgsBuffer[2] = 1;
 }
 
+float3 reconstructWorldPos(float2 uv, float rawDepth)
+{
+    float2 ndc = uv * 2.0 - 1.0;
+    ndc.y = -ndc.y;
+    float4 clipPos = float4(ndc.x, ndc.y, rawDepth, 1.0);
+    float4 worldPos = mul(_InverseViewProjMatrix, clipPos);
+    return worldPos.xyz / worldPos.w;
+}
+
+float4 screenSampleWorldPos(float3 pos, out bool onSurface)
+{
+    onSurface = true; // TODO // Need to do an actual depth check
+
+    float4 clipPos = mul(_ViewProjMatrix, float4(pos, 1.0));
+    float2 ndc = clipPos.xy / clipPos.w;
+    ndc.y = -ndc.y; // *Probably* need this
+    float2 hitUv = ndc * 0.5 + 0.5;
+
+    if (hitUv.x < 0.0 || hitUv.x > 1.0 || hitUv.y < 0.0 || hitUv.y > 1.0)
+    {
+        // Hit something off the screen alltogether
+        onSurface = false;
+    }
+    else
+    {
+        // Check depth by reconstructing world space again
+        uint2 dim;
+        _CameraDepthTexture.GetDimensions(dim.x, dim.y);
+        uint2 frag = uint2(hitUv * dim);
+        float rawDepth = _CameraDepthTexture[frag];
+        float3 screenWorldPos = reconstructWorldPos(hitUv, rawDepth);
+
+        float distanceError = length(screenWorldPos - pos);
+        onSurface = distanceError < 0.5;
+    }
+
+    return _CameraOpaqueTexture.SampleLevel(sampler_LinearClamp, hitUv, 0);
+}
+
+float4 screenSampleWorldPos(float3 pos)
+{
+    bool ignore;
+    return screenSampleWorldPos(pos, ignore);
+}
+
 [numthreads(64, 1, 1)]
 void TraceLens(uint3 id : SV_DispatchThreadID)
 {
@@ -63,17 +112,13 @@ void TraceLens(uint3 id : SV_DispatchThreadID)
     uint width, height;
     _CameraDepthTexture.GetDimensions(width, height);
     float2 uv = (float2(frag) + 0.5) / float2(width, height);
-    float2 ndc = uv * 2.0 - 1.0;
-    ndc.y = -ndc.y;
-    float4 clipPos = float4(ndc.x, ndc.y, rawDepth, 1.0);
-    float4 worldPos = mul(_InverseViewProjMatrix, clipPos);
-    worldPos /= worldPos.w;
-    float3 viewDir = normalize(worldPos.xyz - _CameraPos);
+    float3 worldPos = reconstructWorldPos(uv, rawDepth);
+    float3 viewDir = normalize(worldPos - _CameraPos);
     float3 rayDir = reflect(viewDir, normal);
 
     // For now lets just do a reflection to test
     RayDesc ray;
-    ray.Origin = worldPos.xyz + normal * 0.01;
+    ray.Origin = worldPos + normal * 0.01;
     ray.Direction = rayDir;
     ray.TMin = 0.01;
     ray.TMax = 100.0;
@@ -83,8 +128,10 @@ void TraceLens(uint3 id : SV_DispatchThreadID)
     q.Proceed();
     if (q.CommittedStatus() == COMMITTED_TRIANGLE_HIT)
     {
-        // Render objects green
-        _RayTraceOutput[frag] = float4(0.0, 1.0, 0.0, 1.0);
+        float3 rayPos = ray.Origin + ray.Direction * q.CommittedRayT();
+        bool onSurface;
+        _RayTraceOutput[frag] = screenSampleWorldPos(rayPos, onSurface);
+        if (!onSurface) _RayTraceOutput[frag] = float4(0.0, 1.0, 0.0, 1.0);
     }
     else
     {
