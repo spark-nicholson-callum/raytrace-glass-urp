@@ -348,18 +348,11 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
 
         // Set up the RTAS
         var settings = new RayTracingAccelerationStructure.Settings();
+        settings.layerMask = ~LayerMask.GetMask("UI");
+        settings.managementMode = RayTracingAccelerationStructure.ManagementMode.Automatic;
+        settings.rayTracingModeMask = RayTracingAccelerationStructure.RayTracingModeMask.DynamicTransform
+                                    | RayTracingAccelerationStructure.RayTracingModeMask.Static;
         rtas = new RayTracingAccelerationStructure(settings);
-
-        // Just grab every Instance for now
-        Renderer[] allRenderers = GameObject.FindObjectsByType<Renderer>();
-        foreach (var renderer in allRenderers)
-        {
-            var subMeshFlags = Enumerable.Range(0, renderer.sharedMaterials.Length)
-                .Select(x => RayTracingSubMeshFlags.Enabled)
-                .ToArray();
-
-            rtas.AddInstance(renderer, subMeshFlags, false);
-        }
 
         // Set up passes
         gatherPass = new GatherPass();

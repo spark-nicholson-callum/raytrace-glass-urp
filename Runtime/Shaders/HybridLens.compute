@@ -56,6 +56,9 @@ void TraceLens(uint3 id : SV_DispatchThreadID)
     float3 normal = _LensNormalBuffer[frag].xyz * 2.0 - 1.0;
     float rawDepth = _CameraDepthTexture[frag];
 
+#if !UNITY_DEVICE_SUPPORTS_INLINE_RAY_TRACING
+    _RayTraceOutput[frag] = float4(_LensNormalBuffer[frag].xyz, 1.0);
+#else
     // Reconstruct world position
     uint width, height;
     _CameraDepthTexture.GetDimensions(width, height);
@@ -65,12 +68,10 @@ void TraceLens(uint3 id : SV_DispatchThreadID)
     float4 clipPos = float4(ndc.x, ndc.y, rawDepth, 1.0);
     float4 worldPos = mul(_InverseViewProjMatrix, clipPos);
     worldPos /= worldPos.w;
-
-    // For now lets just do a reflection to test
-#if UNITY_DEVICE_SUPPORTS_INLINE_RAY_TRACING
     float3 viewDir = normalize(worldPos.xyz - _CameraPos);
     float3 rayDir = reflect(viewDir, normal);
 
+    // For now lets just do a reflection to test
     RayDesc ray;
     ray.Origin = worldPos.xyz + normal * 0.01;
     ray.Direction = rayDir;
@@ -79,7 +80,7 @@ void TraceLens(uint3 id : SV_DispatchThreadID)
 
     RayQuery<RAY_FLAG_NONE> q;
     q.TraceRayInline(_SceneRtas, RAY_FLAG_NONE, 0xff, ray);
-    while (q.Proceed());
+    q.Proceed();
     if (q.CommittedStatus() == COMMITTED_TRIANGLE_HIT)
     {
         // Render objects green
@@ -90,7 +91,5 @@ void TraceLens(uint3 id : SV_DispatchThreadID)
         // Render sky blue
         _RayTraceOutput[frag] = float4(0.0, 0.0, 1.0, 1.0);
     }
-#else
-    _RayTraceOutput[frag] = float4(_LensNormalBuffer[frag].xyz, 1.0);
 #endif
 }
