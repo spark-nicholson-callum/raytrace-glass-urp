@@ -9,6 +9,7 @@ Texture2D<float4> _LensNormalBuffer;
 Texture2D<float> _CameraDepthTexture;
 Texture2D<float4> _CameraOpaqueTexture;
 RWTexture2D<float4> _RayTraceOutput;
+TextureCube<float4> _SkyboxTexture;
 
 SamplerState sampler_LinearClamp;
 
@@ -60,8 +61,6 @@ float3 reconstructWorldPos(float2 uv, float rawDepth)
 
 float4 screenSampleWorldPos(float3 pos, out bool onSurface)
 {
-    onSurface = true; // TODO // Need to do an actual depth check
-
     float4 clipPos = mul(_ViewProjMatrix, float4(pos, 1.0));
     float2 ndc = clipPos.xy / clipPos.w;
     ndc.y = -ndc.y; // *Probably* need this
@@ -135,8 +134,8 @@ void TraceLens(uint3 id : SV_DispatchThreadID)
     }
     else
     {
-        // Render sky blue
-        _RayTraceOutput[frag] = float4(0.0, 0.0, 1.0, 1.0);
+        // Missed all geometry, sample the skybox
+        _RayTraceOutput[frag] = _SkyboxTexture.SampleLevel(sampler_LinearClamp, ray.Direction, 0);
     }
 #endif
 }

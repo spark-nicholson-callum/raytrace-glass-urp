@@ -149,13 +149,15 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
     public class TracePass : ScriptableRenderPass
     {
         private ComputeShader lensCompute;
+        private Texture skybox;
         private int clearKernel;
         private int setupKernel;
         private int traceKernel;
 
         private RayTracingAccelerationStructure rtas;
+        private RTHandle skyboxHandle;
 
-        public TracePass(ComputeShader shader, RayTracingAccelerationStructure rtas)
+        public TracePass(ComputeShader shader, RayTracingAccelerationStructure rtas, Texture skybox)
         {
             lensCompute = shader;
             clearKernel = lensCompute.FindKernel("ClearOutput");
@@ -163,6 +165,17 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
             traceKernel = lensCompute.FindKernel("TraceLens");
 
             this.rtas = rtas;
+            this.skybox = skybox;
+
+            if (skybox != null)
+            {
+                skyboxHandle = RTHandles.Alloc(skybox);
+            }
+        }
+
+        public void Dispose()
+        {
+            if (skyboxHandle != null) skyboxHandle.Release();
         }
 
         private class PassData
@@ -179,6 +192,7 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
             public TextureHandle DepthTexture;
             public TextureHandle OpaqueTexture;
             public TextureHandle OutputTexture;
+            public TextureHandle SkyboxTexture;
             public BufferHandle ActivePixelsBuffer;
             public BufferHandle ArgsBuffer;
 
@@ -239,6 +253,9 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
                 builder.UseTexture(outputTextureHandle, AccessFlags.Write);
                 passData.OutputTexture = outputTextureHandle;
 
+                passData.SkyboxTexture = renderGraph.ImportTexture(skyboxHandle);
+                builder.UseTexture(passData.SkyboxTexture, AccessFlags.Read);
+
                 passData.ActivePixelsBuffer = builder.UseBuffer(lensData.ActivePixelsBufferHandle, AccessFlags.Read);
                 passData.ArgsBuffer = builder.UseBuffer(argsHandle, AccessFlags.Write);
 
@@ -271,6 +288,8 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
                     context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_RayTraceOutput", data.OutputTexture);
                     context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_ActivePixelsBufferRead", data.ActivePixelsBuffer);
                     context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_IndirectArgsBuffer", data.ArgsBuffer);
+
+                    context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_SkyboxTexture", data.SkyboxTexture);
 
                     context.cmd.SetComputeMatrixParam(data.Compute, "_ViewProjMatrix", data.ViewProj);
                     context.cmd.SetComputeMatrixParam(data.Compute, "_InverseViewProjMatrix", data.InverseViewProj);
@@ -338,6 +357,8 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
     }
 
     [SerializeField] private ComputeShader lensComputeShader;
+    [SerializeField] private Cubemap skybox;
+
     private GatherPass gatherPass;
     private CompactionPass compactionPass;
     private TracePass tracePass;
@@ -369,7 +390,7 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
         compactionPass = new CompactionPass(lensComputeShader);
         compactionPass.renderPassEvent = RenderPassEvent.AfterRenderingOpaques + 1;
 
-        tracePass = new TracePass(lensComputeShader, rtas);
+        tracePass = new TracePass(lensComputeShader, rtas, skybox);
         tracePass.renderPassEvent = RenderPassEvent.AfterRenderingOpaques + 2;
 
         projectorPass = new ProjectorPass();
@@ -379,6 +400,7 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
     protected override void Dispose(bool disposing)
     {
         if (rtas != null) rtas.Release();
+        if (tracePass != null) tracePass.Dispose();
     }
 
     public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
