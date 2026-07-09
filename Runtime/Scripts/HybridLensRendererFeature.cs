@@ -162,6 +162,10 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
         private int setupKernel;
         private int traceKernel;
 
+        private HybridLens currentLens;
+        private ComputeBuffer lensNormals;
+        private ComputeBuffer lensIndices;
+
         private RayTracingAccelerationStructure rtas;
         private RTHandle skyboxHandle;
 
@@ -179,11 +183,35 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
             {
                 skyboxHandle = RTHandles.Alloc(skybox);
             }
+
+            UpdateLensData();
         }
 
         public void Dispose()
         {
             if (skyboxHandle != null) skyboxHandle.Release();
+            if (lensNormals != null) lensNormals.Release();
+            if (lensIndices != null) lensIndices.Release();
+        }
+
+        private void UpdateLensData()
+        {
+            currentLens = HybridLens.ActiveLens;
+
+            if (lensNormals != null) lensNormals.Release();
+            if (lensIndices != null) lensIndices.Release();
+
+            if (currentLens == null) return;
+
+            Mesh lensMesh = currentLens.LensMesh;
+            Vector3[] normals = lensMesh.normals;
+            int[]     indices = lensMesh.triangles;
+
+            lensNormals = new ComputeBuffer(normals.Length, 12);
+            lensNormals.SetData(normals);
+
+            lensIndices = new ComputeBuffer(indices.Length, 4);
+            lensIndices.SetData(indices);
         }
 
         private class PassData
@@ -209,10 +237,16 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
             public Matrix4x4 InverseViewProj;
             public RayTracingAccelerationStructure Rtas;
             public Vector3 CameraPos;
+
+            public ComputeBuffer LensNormalsBuffer;
+            public ComputeBuffer LensIndicesBuffer;
+            public Matrix4x4 LensInverseLocalToWorld;
         }
 
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
         {
+            if (HybridLens.ActiveLens != currentLens) UpdateLensData();
+
             var lensData     = frameData.Get<HybridLensData>();
             var cameraData   = frameData.Get<UniversalCameraData>();
             var resourceData = frameData.Get<UniversalResourceData>();
@@ -250,6 +284,7 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
                 passData.ClearGroupsX = (width  + 8 - 1) / 8;
                 passData.ClearGroupsY = (height + 8 - 1) / 8;
 
+                // Textures
                 builder.UseTexture(lensData.NormalBufferHandle, AccessFlags.Read);
                 passData.NormalTexture = lensData.NormalBufferHandle;
 
@@ -268,13 +303,20 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
                 passData.SkyboxTexture = renderGraph.ImportTexture(skyboxHandle);
                 builder.UseTexture(passData.SkyboxTexture, AccessFlags.Read);
 
+                // Buffers
                 passData.ActivePixelsBuffer = builder.UseBuffer(lensData.ActivePixelsBufferHandle, AccessFlags.Read);
                 passData.ArgsBuffer = builder.UseBuffer(argsHandle, AccessFlags.Write);
 
+                // Misc
                 Matrix4x4 viewMatrix = cameraData.GetViewMatrix();
                 Matrix4x4 projMatrix = GL.GetGPUProjectionMatrix(cameraData.GetProjectionMatrix(), true);
                 passData.ViewProj = projMatrix * viewMatrix;
                 passData.InverseViewProj = passData.ViewProj.inverse;
+
+                // Mesh Data
+                passData.LensNormalsBuffer = lensNormals;
+                passData.LensIndicesBuffer = lensIndices;
+                passData.LensInverseLocalToWorld = currentLens.LensTransform.worldToLocalMatrix;
 
                 passData.Rtas = rtas;
                 passData.CameraPos = cameraData.worldSpaceCameraPos;
@@ -308,6 +350,10 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
                     context.cmd.SetComputeMatrixParam(data.Compute, "_InverseViewProjMatrix", data.InverseViewProj);
                     context.cmd.SetRayTracingAccelerationStructure(data.Compute, data.TraceKernel, "_SceneRtas", data.Rtas);
                     context.cmd.SetComputeVectorParam(data.Compute, "_CameraPos", data.CameraPos);
+
+                    context.cmd.SetComputeMatrixParam(data.Compute, "_LensInverseLocalToWorld", data.LensInverseLocalToWorld);
+                    context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_LensNormals", data.LensNormalsBuffer);
+                    context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_LensIndices", data.LensIndicesBuffer);
 
                     context.cmd.DispatchCompute(data.Compute, data.TraceKernel, data.ArgsBuffer, 0);
                 });
@@ -419,6 +465,7 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
     public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
     {
         if (lensComputeShader == null) return;
+        if (HybridLens.ActiveLens == null) return;
         if (!SystemInfo.supportsRayTracing)
         {
             Debug.LogWarning("HybridLensFeature: Hardware Ray Tracing is not suppported!");

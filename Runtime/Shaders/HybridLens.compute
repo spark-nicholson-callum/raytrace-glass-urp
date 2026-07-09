@@ -28,6 +28,10 @@ RaytracingAccelerationStructure _SceneRtas;
 #endif
 float3 _CameraPos;
 
+StructuredBuffer<float3> _LensNormals;
+StructuredBuffer<uint> _LensIndices;
+float4x4 _LensInverseLocalToWorld;
+
 [numthreads(8, 8, 1)]
 void NormalCompaction(uint3 id : SV_DispatchThreadID)
 {
@@ -97,31 +101,6 @@ float4 screenSampleWorldPos(float3 pos)
     return screenSampleWorldPos(pos, ignore);
 }
 
-#if UNITY_DEVICE_SUPPORTS_INLINE_RAY_TRACING
-float3 trace(float3 from, float3 dir, out bool hit)
-{
-    RayDesc ray;
-    ray.Origin = from;
-    ray.Direction = dir;
-    ray.TMin = 0.01;
-    ray.TMax = 100.0;
-
-    RayQuery<RAY_FLAG_NONE> q;
-    q.TraceRayInline(_SceneRtas, RAY_FLAG_NONE, 0xff, ray);
-    q.Proceed();
-    if (q.CommittedStatus() == COMMITTED_TRIANGLE_HIT)
-    {
-        hit = true;
-        return ray.Origin + ray.Direction * q.CommittedRayT();
-    }
-    else
-    {
-        hit = false;
-        return (float3)0.0;
-    }
-}
-#endif
-
 [numthreads(64, 1, 1)]
 void TraceLens(uint3 id : SV_DispatchThreadID)
 {
@@ -144,16 +123,87 @@ void TraceLens(uint3 id : SV_DispatchThreadID)
     bool isHit;
     float3 dir, pos, norm;
 
+    // Cast inside glass to back
     norm = fragNorm;
     pos  = fragPos - norm * 0.01;
     dir  = refract(viewDir, norm, IOR_AIR / IOR_GLASS);
+    {
+        RayDesc ray;
+        ray.Origin = pos;
+        ray.Direction = dir;
+        ray.TMin = 0.01;
+        ray.TMax = 100.0;
 
-    // Cast inside glass to back
-    pos = trace(pos, dir, isHit);
+        RayQuery<RAY_FLAG_NONE> q;
+        q.TraceRayInline(_SceneRtas, RAY_FLAG_NONE, 0xff, ray);
+        q.Proceed();
+        if (q.CommittedStatus() == COMMITTED_TRIANGLE_HIT)
+        {
+            isHit = true;
+            pos = ray.Origin + ray.Direction * q.CommittedRayT();
+
+            // Fetch the normal from the vertex buffer
+            uint prim = q.CommittedPrimitiveIndex();
+            float2 bary = q.CommittedTriangleBarycentrics();
+
+            uint i0 = _LensIndices[prim * 3 + 0];
+            uint i1 = _LensIndices[prim * 3 + 1];
+            uint i2 = _LensIndices[prim * 3 + 2];
+
+            float3 n0 = _LensNormals[i0];
+            float3 n1 = _LensNormals[i1];
+            float3 n2 = _LensNormals[i2];
+
+            float w0 = 1.0 - bary.x - bary.y;
+            float w1 = bary.x;
+            float w2 = bary.y;
+
+            float3 localNorm = (w0 * n0) + (w1 * n1) + (w2 * n2);
+
+            norm = normalize(mul(localNorm, (float3x3)_LensInverseLocalToWorld));
+        }
+        else
+        {
+            isHit = false;
+        }
+    }
+    if (!isHit)
+    {
+        // Red for an error
+        _RayTraceOutput[frag] = float4(1.0, 0.0, 0.0, 1.0);
+    }
+
     // Cast once more for now
-    pos = trace(pos + dir * 0.01, dir, isHit);
+    pos = pos + norm * 0.01;
+    dir = refract(dir, -norm, IOR_GLASS / IOR_AIR);
+    if (all(dir == 0.0))
+    {
+        // The TIR case, just output debug magenta for now
+        // I want to support reflections later
+        _RayTraceOutput[frag] = float4(1.0, 0.0, 1.0, 1.0);
+        return;
+    }
+    {
+        RayDesc ray;
+        ray.Origin = pos;
+        ray.Direction = dir;
+        ray.TMin = 0.01;
+        ray.TMax = 100.0;
 
-    //
+        RayQuery<RAY_FLAG_NONE> q;
+        q.TraceRayInline(_SceneRtas, RAY_FLAG_NONE, 0xff, ray);
+        q.Proceed();
+        if (q.CommittedStatus() == COMMITTED_TRIANGLE_HIT)
+        {
+            isHit = true;
+            pos = ray.Origin + ray.Direction * q.CommittedRayT();
+        }
+        else
+        {
+            isHit = false;
+        }
+    }
+
     if (isHit)
     {
         bool onSurface;
