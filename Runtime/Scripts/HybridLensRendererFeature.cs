@@ -9,6 +9,7 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
     public class HybridLensData : ContextItem
     {
         public TextureHandle NormalBufferHandle;
+        public TextureHandle DepthBufferHandle;
         public TextureHandle OutputTextureHandle;
         public BufferHandle ActivePixelsBufferHandle;
 
@@ -33,6 +34,7 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
         {
             // TODO // Normal buffer doesn't have to be in pass data
             public TextureHandle NormalBuffer;
+            public TextureHandle DepthBuffer;
             public RendererListHandle RendererList;
         }
 
@@ -45,13 +47,17 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
             var resourceData  = frameData.Get<UniversalResourceData>();
 
             // Create the texture based on the camera texture
-            var texDesc = cameraData.cameraTargetDescriptor;
-            texDesc.colorFormat = RenderTextureFormat.ARGB32;
-            texDesc.depthBufferBits = 0;
-
-            var normalBufferHandle = UniversalRenderer.CreateRenderGraphTexture(renderGraph, texDesc, "_LensNormalBuffer", false);
-
+            var normalDesc = cameraData.cameraTargetDescriptor;
+            normalDesc.colorFormat = RenderTextureFormat.ARGB32;
+            normalDesc.depthBufferBits = 0;
+            var normalBufferHandle = UniversalRenderer.CreateRenderGraphTexture(renderGraph, normalDesc, "_LensNormalBuffer", false);
             lensData.NormalBufferHandle = normalBufferHandle;
+
+            var depthDesc = cameraData.cameraTargetDescriptor;
+            depthDesc.colorFormat = RenderTextureFormat.RFloat;
+            depthDesc.depthBufferBits = 0;
+            var depthBufferHandle = UniversalRenderer.CreateRenderGraphTexture(renderGraph, depthDesc, "_LensDepthBuffer", false);
+            lensData.DepthBufferHandle = depthBufferHandle;
 
             // Build the renderer list
             var sortingCriteria = cameraData.defaultOpaqueSortFlags;
@@ -63,10 +69,12 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
             using (var builder = renderGraph.AddRasterRenderPass<PassData>("Lens Gatherer Pass", out var passData))
             {
                 passData.NormalBuffer = normalBufferHandle;
+                passData.DepthBuffer  = depthBufferHandle;
                 passData.RendererList = rendererListHandle;
 
                 builder.UseRendererList(rendererListHandle);
                 builder.SetRenderAttachment(normalBufferHandle, 0, AccessFlags.Write);
+                builder.SetRenderAttachment(depthBufferHandle, 1, AccessFlags.Write);
                 builder.SetRenderAttachmentDepth(resourceData.activeDepthTexture, AccessFlags.Write);
 
                 builder.SetRenderFunc(static (PassData data, RasterGraphContext context) =>
@@ -190,6 +198,7 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
 
             public TextureHandle NormalTexture;
             public TextureHandle DepthTexture;
+            public TextureHandle CameraDepthTexture;
             public TextureHandle OpaqueTexture;
             public TextureHandle OutputTexture;
             public TextureHandle SkyboxTexture;
@@ -244,8 +253,11 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
                 builder.UseTexture(lensData.NormalBufferHandle, AccessFlags.Read);
                 passData.NormalTexture = lensData.NormalBufferHandle;
 
+                builder.UseTexture(lensData.DepthBufferHandle, AccessFlags.Read);
+                passData.DepthTexture = lensData.DepthBufferHandle;
+
                 builder.UseTexture(resourceData.activeDepthTexture, AccessFlags.Read);
-                passData.DepthTexture = resourceData.activeDepthTexture;
+                passData.CameraDepthTexture = resourceData.activeDepthTexture;
 
                 builder.UseTexture(resourceData.activeColorTexture, AccessFlags.Read);
                 passData.OpaqueTexture = resourceData.activeColorTexture;
@@ -283,7 +295,8 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
 
                     // Run the lens tracing kernel
                     context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_LensNormalBuffer", data.NormalTexture);
-                    context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_CameraDepthTexture", data.DepthTexture);
+                    context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_LensDepthBuffer", data.DepthTexture);
+                    context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_CameraDepthTexture", data.CameraDepthTexture);
                     context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_CameraOpaqueTexture", data.OpaqueTexture);
                     context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_RayTraceOutput", data.OutputTexture);
                     context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_ActivePixelsBufferRead", data.ActivePixelsBuffer);

@@ -5,7 +5,11 @@
 
 #pragma multi_compile _ UNITY_DEVICE_SUPPORTS_INLINE_RAY_TRACING
 
+#define IOR_AIR 1.0
+#define IOR_GLASS 1.5
+
 Texture2D<float4> _LensNormalBuffer;
+Texture2D<float> _LensDepthBuffer;
 Texture2D<float> _CameraDepthTexture;
 Texture2D<float4> _CameraOpaqueTexture;
 RWTexture2D<float4> _RayTraceOutput;
@@ -93,32 +97,12 @@ float4 screenSampleWorldPos(float3 pos)
     return screenSampleWorldPos(pos, ignore);
 }
 
-[numthreads(64, 1, 1)]
-void TraceLens(uint3 id : SV_DispatchThreadID)
+#if UNITY_DEVICE_SUPPORTS_INLINE_RAY_TRACING
+float3 trace(float3 from, float3 dir, out bool hit)
 {
-    uint activePixelCount = _IndirectArgsBuffer[3];
-    if (id.x >= activePixelCount) return;
-
-    uint2 frag = _ActivePixelsBufferRead[id.x];
-
-    float3 normal = _LensNormalBuffer[frag].xyz * 2.0 - 1.0;
-    float rawDepth = _CameraDepthTexture[frag];
-
-#if !UNITY_DEVICE_SUPPORTS_INLINE_RAY_TRACING
-    _RayTraceOutput[frag] = float4(_LensNormalBuffer[frag].xyz, 1.0);
-#else
-    // Reconstruct world position
-    uint width, height;
-    _CameraDepthTexture.GetDimensions(width, height);
-    float2 uv = (float2(frag) + 0.5) / float2(width, height);
-    float3 worldPos = reconstructWorldPos(uv, rawDepth);
-    float3 viewDir = normalize(worldPos - _CameraPos);
-    float3 rayDir = reflect(viewDir, normal);
-
-    // For now lets just do a reflection to test
     RayDesc ray;
-    ray.Origin = worldPos + normal * 0.01;
-    ray.Direction = rayDir;
+    ray.Origin = from;
+    ray.Direction = dir;
     ray.TMin = 0.01;
     ray.TMax = 100.0;
 
@@ -127,15 +111,62 @@ void TraceLens(uint3 id : SV_DispatchThreadID)
     q.Proceed();
     if (q.CommittedStatus() == COMMITTED_TRIANGLE_HIT)
     {
-        float3 rayPos = ray.Origin + ray.Direction * q.CommittedRayT();
+        hit = true;
+        return ray.Origin + ray.Direction * q.CommittedRayT();
+    }
+    else
+    {
+        hit = false;
+        return (float3)0.0;
+    }
+}
+#endif
+
+[numthreads(64, 1, 1)]
+void TraceLens(uint3 id : SV_DispatchThreadID)
+{
+    uint activePixelCount = _IndirectArgsBuffer[3];
+    if (id.x >= activePixelCount) return;
+
+    uint2 frag = _ActivePixelsBufferRead[id.x];
+
+#if UNITY_DEVICE_SUPPORTS_INLINE_RAY_TRACING
+    float3 fragNorm = _LensNormalBuffer[frag].xyz * 2.0 - 1.0;
+    float rawDepth = _LensDepthBuffer[frag];
+
+    // Reconstruct world position
+    uint width, height;
+    _CameraDepthTexture.GetDimensions(width, height);
+    float2 uv = (float2(frag) + 0.5) / float2(width, height);
+    float3 fragPos = reconstructWorldPos(uv, rawDepth);
+    float3 viewDir = normalize(fragPos - _CameraPos);
+
+    bool isHit;
+    float3 dir, pos, norm;
+
+    norm = fragNorm;
+    pos  = fragPos - norm * 0.01;
+    dir  = refract(viewDir, norm, IOR_AIR / IOR_GLASS);
+
+    // Cast inside glass to back
+    pos = trace(pos, dir, isHit);
+    // Cast once more for now
+    pos = trace(pos + dir * 0.01, dir, isHit);
+
+    //
+    if (isHit)
+    {
         bool onSurface;
-        _RayTraceOutput[frag] = screenSampleWorldPos(rayPos, onSurface);
+        _RayTraceOutput[frag] = screenSampleWorldPos(pos, onSurface);
+        // Output debug green for now
         if (!onSurface) _RayTraceOutput[frag] = float4(0.0, 1.0, 0.0, 1.0);
     }
     else
     {
         // Missed all geometry, sample the skybox
-        _RayTraceOutput[frag] = _SkyboxTexture.SampleLevel(sampler_LinearClamp, ray.Direction, 0);
+        _RayTraceOutput[frag] = _SkyboxTexture.SampleLevel(sampler_LinearClamp, dir, 0);
     }
+#else
+    _RayTraceOutput[frag] = float4(_LensNormalBuffer[frag].xyz, 1.0);
 #endif
 }

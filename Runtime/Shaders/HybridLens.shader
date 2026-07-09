@@ -8,6 +8,8 @@ Shader "Custom/HybridLens"
         {
             Name "LensGather"
             Tags { "LightMode" = "HybridLens/Gather" }
+            ZWrite Off
+            ZTest LEqual
 
             HLSLPROGRAM
             #pragma vertex vert
@@ -20,11 +22,16 @@ Shader "Custom/HybridLens"
                 float3 normal : NORMAL;
             };
 
-
             struct Varyings
             {
                 float4 pos : SV_POSITION;
                 float3 worldNormal : TEXCOORD0;
+            };
+
+            struct FragOutput
+            {
+                float4 normal : SV_Target0;
+                float4 depth  : SV_Target1;
             };
 
             Varyings vert(Attributes IN)
@@ -37,12 +44,17 @@ Shader "Custom/HybridLens"
                 return OUT;
             }
 
-            float4 frag(Varyings IN) : SV_TARGET
+            FragOutput frag(Varyings IN)
             {
+                FragOutput OUT;
+
                 float3 normal = normalize(IN.worldNormal);
                 float3 colorNormal = normal * 0.5 + 0.5;
 
-                return float4(colorNormal, 1.0);
+                OUT.normal = float4(colorNormal, 1.0);
+                OUT.depth  = IN.pos.z;
+
+                return OUT;
             }
 
             ENDHLSL
