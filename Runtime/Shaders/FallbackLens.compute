@@ -1,0 +1,31 @@
+#pragma kernel ArgsSetup
+#pragma kernel FallbackTrace
+
+#include "shared.hlsl"
+
+RWTexture2D<float4> _RayTraceOutput;
+
+RWStructuredBuffer<uint> _IndirectArgsBuffer;
+StructuredBuffer<FallbackRay> _OccludedRayBuffer;
+
+[numthreads(1, 1, 1)]
+void ArgsSetup(uint3 id : SV_DispatchThreadID)
+{
+    uint rawCount = _IndirectArgsBuffer[3];
+
+    _IndirectArgsBuffer[0] = (rawCount + 64 - 1) / 64;
+    _IndirectArgsBuffer[1] = 1;
+    _IndirectArgsBuffer[2] = 1;
+}
+
+[numthreads(64, 1, 1)]
+void FallbackTrace(uint3 id : SV_DispatchThreadID)
+{
+    uint activeRayCount = _IndirectArgsBuffer[3];
+    if (id.x >= activeRayCount) return;
+
+    FallbackRay ray = _OccludedRayBuffer[id.x];
+    uint2 frag = ray.frag;
+
+    _RayTraceOutput[frag] = float4(1.0, 1.0, 0.0, 1.0);
+}

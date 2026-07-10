@@ -224,7 +224,7 @@ void TraceLens(uint3 id : SV_DispatchThreadID)
             payload.origin = pos;
             payload.direction = dir;
 
-            // _OccludedRayBuffer.Append(payload);
+            _OccludedRayBuffer.Append(payload);
         }
     }
     else

@@ -206,6 +206,8 @@ namespace CallumNicholson.RaytraceGlassURP
                     context.cmd.DispatchCompute(data.Compute, data.SetupKernel, 1, 1, 1);
 
                     // Run the lens tracing kernel
+                    context.cmd.SetBufferCounterValue(data.OccludedRayBuffer, 0);
+
                     context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_LensNormalBuffer", data.NormalTexture);
                     context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_LensDepthBuffer", data.DepthTexture);
                     context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_CameraDepthTexture", data.CameraDepthTexture);
