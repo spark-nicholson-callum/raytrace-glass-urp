@@ -5,6 +5,8 @@
 
 #pragma multi_compile _ UNITY_DEVICE_SUPPORTS_INLINE_RAY_TRACING
 
+#include "shared.hlsl"
+
 #define IOR_AIR 1.0
 #define IOR_GLASS 1.5
 
@@ -27,10 +29,13 @@ float4x4 _InverseViewProjMatrix;
 RaytracingAccelerationStructure _SceneRtas;
 #endif
 float3 _CameraPos;
+float4x4 _SkyRotation;
 
 StructuredBuffer<float3> _LensNormals;
 StructuredBuffer<uint> _LensIndices;
 float4x4 _LensInverseLocalToWorld;
+
+AppendStructuredBuffer<FallbackRay> _OccludedRayBuffer;
 
 [numthreads(8, 8, 1)]
 void NormalCompaction(uint3 id : SV_DispatchThreadID)
@@ -174,6 +179,7 @@ void TraceLens(uint3 id : SV_DispatchThreadID)
     }
 
     // Cast once more for now
+    float3 samplePos;
     pos = pos + norm * 0.01;
     dir = refract(dir, -norm, IOR_GLASS / IOR_AIR);
     if (all(dir == 0.0))
@@ -196,7 +202,7 @@ void TraceLens(uint3 id : SV_DispatchThreadID)
         if (q.CommittedStatus() == COMMITTED_TRIANGLE_HIT)
         {
             isHit = true;
-            pos = ray.Origin + ray.Direction * q.CommittedRayT();
+            samplePos = ray.Origin + ray.Direction * q.CommittedRayT();
         }
         else
         {
@@ -207,14 +213,25 @@ void TraceLens(uint3 id : SV_DispatchThreadID)
     if (isHit)
     {
         bool onSurface;
-        _RayTraceOutput[frag] = screenSampleWorldPos(pos, onSurface);
-        // Output debug green for now
-        if (!onSurface) _RayTraceOutput[frag] = float4(0.0, 1.0, 0.0, 1.0);
+        _RayTraceOutput[frag] = screenSampleWorldPos(samplePos, onSurface);
+        if (!onSurface)
+        {
+            // Output debug cyan
+            _RayTraceOutput[frag] = float4(0.0, 1.0, 1.0, 1.0);
+
+            FallbackRay payload;
+            payload.frag = frag;
+            payload.origin = pos;
+            payload.direction = dir;
+
+            // _OccludedRayBuffer.Append(payload);
+        }
     }
     else
     {
         // Missed all geometry, sample the skybox
-        _RayTraceOutput[frag] = _SkyboxTexture.SampleLevel(sampler_LinearClamp, dir, 0);
+        float3 skyboxDir = mul((float3x3)_SkyRotation, dir);
+        _RayTraceOutput[frag] = _SkyboxTexture.SampleLevel(sampler_LinearClamp, skyboxDir, 0);
     }
 #else
     _RayTraceOutput[frag] = float4(_LensNormalBuffer[frag].xyz, 1.0);

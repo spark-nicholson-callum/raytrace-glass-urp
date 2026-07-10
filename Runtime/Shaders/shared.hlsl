@@ -1,0 +1,11 @@
+#ifndef CALLLUM_NICHOLSON_RAYTRACE_GLASS_SHARED_DEFINED__
+#define CALLLUM_NICHOLSON_RAYTRACE_GLASS_SHARED_DEFINED__
+
+struct FallbackRay
+{
+    uint2 frag;
+    float3 origin;
+    float3 direction;
+};
+
+#endif//CALLLUM_NICHOLSON_RAYTRACE_GLASS_SHARED_DEFINED__

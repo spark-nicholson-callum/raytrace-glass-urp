@@ -12,11 +12,15 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
         public TextureHandle DepthBufferHandle;
         public TextureHandle OutputTextureHandle;
         public BufferHandle ActivePixelsBufferHandle;
+        public BufferHandle OccludedRayBufferHandle;
 
         public override void Reset()
         {
             NormalBufferHandle = TextureHandle.nullHandle;
+            DepthBufferHandle = TextureHandle.nullHandle;
+            OutputTextureHandle = TextureHandle.nullHandle;
             ActivePixelsBufferHandle = BufferHandle.nullHandle;
+            OccludedRayBufferHandle = BufferHandle.nullHandle;
         }
     }
 
@@ -156,6 +160,7 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
 
     public class TracePass : ScriptableRenderPass
     {
+        private const int FallbackSize = 32;
         private ComputeShader lensCompute;
         private Texture skybox;
         private int clearKernel;
@@ -237,10 +242,13 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
             public Matrix4x4 InverseViewProj;
             public RayTracingAccelerationStructure Rtas;
             public Vector3 CameraPos;
+            public Matrix4x4 SkyRotation;
 
             public ComputeBuffer LensNormalsBuffer;
             public ComputeBuffer LensIndicesBuffer;
             public Matrix4x4 LensInverseLocalToWorld;
+
+            public BufferHandle OccludedRayBuffer;
         }
 
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
@@ -270,11 +278,16 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
             };
             BufferHandle argsHandle = renderGraph.CreateBuffer(argsDesc);
 
+            var bufferDesc = new BufferDesc(width * height, FallbackSize)
+            {
+                name = "Occluded Ray Buffer",
+                target = GraphicsBuffer.Target.Append
+            };
+            var occludedRayBufferHandle = renderGraph.CreateBuffer(bufferDesc);
+            lensData.OccludedRayBufferHandle = occludedRayBufferHandle;
+
             using (var builder = renderGraph.AddComputePass<PassData>("Lens Trace Pass", out var passData))
             {
-                // TODO // Temporarily disable culling for debugging
-                builder.AllowPassCulling(false);
-
                 passData.Compute = lensCompute;
                 passData.ClearKernel = clearKernel;
                 passData.SetupKernel = setupKernel;
@@ -312,14 +325,23 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
                 Matrix4x4 projMatrix = GL.GetGPUProjectionMatrix(cameraData.GetProjectionMatrix(), true);
                 passData.ViewProj = projMatrix * viewMatrix;
                 passData.InverseViewProj = passData.ViewProj.inverse;
+                passData.Rtas = rtas;
+                passData.CameraPos = cameraData.worldSpaceCameraPos;
+
+                float skyRotation = 0f;
+                if (RenderSettings.skybox != null && RenderSettings.skybox.HasProperty("_Rotation"))
+                {
+                    skyRotation = RenderSettings.skybox.GetFloat("_Rotation");
+                }
+
+                passData.SkyRotation = Matrix4x4.Rotate(Quaternion.Euler(0, skyRotation, 0));
 
                 // Mesh Data
                 passData.LensNormalsBuffer = lensNormals;
                 passData.LensIndicesBuffer = lensIndices;
                 passData.LensInverseLocalToWorld = currentLens.LensTransform.worldToLocalMatrix;
 
-                passData.Rtas = rtas;
-                passData.CameraPos = cameraData.worldSpaceCameraPos;
+                passData.OccludedRayBuffer = builder.UseBuffer(occludedRayBufferHandle, AccessFlags.Write);
 
                 builder.SetRenderFunc(static (PassData data, ComputeGraphContext context) =>
                 {
@@ -350,10 +372,13 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
                     context.cmd.SetComputeMatrixParam(data.Compute, "_InverseViewProjMatrix", data.InverseViewProj);
                     context.cmd.SetRayTracingAccelerationStructure(data.Compute, data.TraceKernel, "_SceneRtas", data.Rtas);
                     context.cmd.SetComputeVectorParam(data.Compute, "_CameraPos", data.CameraPos);
+                    context.cmd.SetComputeMatrixParam(data.Compute, "_SkyRotation", data.SkyRotation);
 
                     context.cmd.SetComputeMatrixParam(data.Compute, "_LensInverseLocalToWorld", data.LensInverseLocalToWorld);
                     context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_LensNormals", data.LensNormalsBuffer);
                     context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_LensIndices", data.LensIndicesBuffer);
+
+                    context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_OccludedRayBuffer", data.OccludedRayBuffer);
 
                     context.cmd.DispatchCompute(data.Compute, data.TraceKernel, data.ArgsBuffer, 0);
                 });
@@ -472,14 +497,7 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
             return;
         }
 
-        /* switch (renderingData.cameraData.cameraType) */
-        /* { */
-        /*     case CameraType.Game: */
-        /*     case CameraType.SceneView: */
-        /*         break; */
-        /*     default: */
-        /*         return; */
-        /* } */
+        // TODO // Filter cameras?
 
         renderer.EnqueuePass(gatherPass);
         renderer.EnqueuePass(compactionPass);
