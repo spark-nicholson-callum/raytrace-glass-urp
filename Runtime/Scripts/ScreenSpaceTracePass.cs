@@ -18,17 +18,15 @@ namespace CallumNicholson.RaytraceGlassURP
         private ComputeBuffer lensNormals;
         private ComputeBuffer lensIndices;
 
-        private RayTracingAccelerationStructure rtas;
         private RTHandle skyboxHandle;
 
-        public ScreenSpaceTracePass(ComputeShader shader, RayTracingAccelerationStructure rtas, Texture skybox)
+        public ScreenSpaceTracePass(ComputeShader shader, Texture skybox)
         {
             lensCompute = shader;
             clearKernel = lensCompute.FindKernel("ClearOutput");
             setupKernel = lensCompute.FindKernel("ArgsSetup");
             traceKernel = lensCompute.FindKernel("TraceLens");
 
-            this.rtas = rtas;
             this.skybox = skybox;
 
             if (skybox != null)
@@ -102,6 +100,9 @@ namespace CallumNicholson.RaytraceGlassURP
         {
             if (HybridLens.ActiveLens != currentLens) UpdateLensData();
 
+            // TODO // There is no real reason to call this every frame (it is easier though)
+            RayTracingSceneManager.Instance.RebuildSceneData();
+
             var lensData     = frameData.Get<HybridLensRendererFeature.HybridLensData>();
             var cameraData   = frameData.Get<UniversalCameraData>();
             var resourceData = frameData.Get<UniversalResourceData>();
@@ -172,7 +173,7 @@ namespace CallumNicholson.RaytraceGlassURP
                 Matrix4x4 projMatrix = GL.GetGPUProjectionMatrix(cameraData.GetProjectionMatrix(), true);
                 passData.ViewProj = projMatrix * viewMatrix;
                 passData.InverseViewProj = passData.ViewProj.inverse;
-                passData.Rtas = rtas;
+                passData.Rtas = RayTracingSceneManager.Instance.Rtas;
                 passData.CameraPos = cameraData.worldSpaceCameraPos;
 
                 float skyRotation = 0f;

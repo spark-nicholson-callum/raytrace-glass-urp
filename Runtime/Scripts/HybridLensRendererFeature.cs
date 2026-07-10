@@ -33,8 +33,6 @@ namespace CallumNicholson.RaytraceGlassURP
         private ScreenSpaceTracePass tracePass;
         private LensProjectorPass projectorPass;
 
-        private RayTracingAccelerationStructure rtas;
-
         public override void Create()
         {
             if (lensComputeShader == null) return;
@@ -44,19 +42,11 @@ namespace CallumNicholson.RaytraceGlassURP
                 return;
             }
 
-            // Set up the RTAS
-            var settings = new RayTracingAccelerationStructure.Settings();
-            settings.layerMask = ~LayerMask.GetMask("UI");
-            settings.managementMode = RayTracingAccelerationStructure.ManagementMode.Automatic;
-            settings.rayTracingModeMask = RayTracingAccelerationStructure.RayTracingModeMask.DynamicTransform
-                                        | RayTracingAccelerationStructure.RayTracingModeMask.Static;
-            rtas = new RayTracingAccelerationStructure(settings);
-
             // Set up passes
             gatherPass = new LensGatherPass(lensComputeShader);
             gatherPass.renderPassEvent = RenderPassEvent.AfterRenderingOpaques;
 
-            tracePass = new ScreenSpaceTracePass(lensComputeShader, rtas, skybox);
+            tracePass = new ScreenSpaceTracePass(lensComputeShader, skybox);
             tracePass.renderPassEvent = RenderPassEvent.AfterRenderingOpaques + 1;
 
             projectorPass = new LensProjectorPass();
@@ -65,7 +55,6 @@ namespace CallumNicholson.RaytraceGlassURP
 
         protected override void Dispose(bool disposing)
         {
-            if (rtas != null) rtas.Release();
             if (tracePass != null) tracePass.Dispose();
         }
 
@@ -73,6 +62,7 @@ namespace CallumNicholson.RaytraceGlassURP
         {
             if (lensComputeShader == null) return;
             if (HybridLens.ActiveLens == null) return;
+            if (RayTracingSceneManager.Instance == null) return;
             if (!SystemInfo.supportsRayTracing)
             {
                 Debug.LogWarning("HybridLensFeature: Hardware Ray Tracing is not suppported!");
