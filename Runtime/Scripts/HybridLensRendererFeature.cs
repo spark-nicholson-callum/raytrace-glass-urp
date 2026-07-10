@@ -26,20 +26,31 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
 
     public class GatherPass : ScriptableRenderPass
     {
+        private ComputeShader lensCompute;
+        private int compactionKernel;
+
         private ShaderTagId shaderTagId = new ShaderTagId("HybridLens/Gather");
         private FilteringSettings filteringSettings;
 
-        public GatherPass()
+        public GatherPass(ComputeShader shader)
         {
+            lensCompute = shader;
+            compactionKernel = lensCompute.FindKernel("NormalCompaction");
+
             filteringSettings = new FilteringSettings(RenderQueueRange.opaque);
         }
 
         private class PassData
         {
-            // TODO // Normal buffer doesn't have to be in pass data
-            public TextureHandle NormalBuffer;
-            public TextureHandle DepthBuffer;
+            public ComputeShader Compute;
+            public int Kernel;
+
+            public int ThreadGroupsX;
+            public int ThreadGroupsY;
+
             public RendererListHandle RendererList;
+            public TextureHandle NormalBuffer;
+            public BufferHandle ActivePixelsBuffer;
         }
 
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
@@ -50,6 +61,9 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
             var lightData     = frameData.Get<UniversalLightData>();
             var resourceData  = frameData.Get<UniversalResourceData>();
 
+            int width = cameraData.cameraTargetDescriptor.width;
+            int height = cameraData.cameraTargetDescriptor.height;
+
             // Create the texture based on the camera texture
             var normalDesc = cameraData.cameraTargetDescriptor;
             normalDesc.colorFormat = RenderTextureFormat.ARGB32;
@@ -57,6 +71,7 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
             var normalBufferHandle = UniversalRenderer.CreateRenderGraphTexture(renderGraph, normalDesc, "_LensNormalBuffer", false);
             lensData.NormalBufferHandle = normalBufferHandle;
 
+            // Create the depth texture based on the camera texture
             var depthDesc = cameraData.cameraTargetDescriptor;
             depthDesc.colorFormat = RenderTextureFormat.RFloat;
             depthDesc.depthBufferBits = 0;
@@ -70,10 +85,17 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
             var listParams = new RendererListParams(renderingData.cullResults, drawingSettings, filteringSettings);
             var rendererListHandle = renderGraph.CreateRendererList(listParams);
 
+            // Create the active pixel buffer
+            var bufferDesc = new BufferDesc(width * height, sizeof(uint) * 2)
+            {
+                name = "Active Lens Pixels Buffer",
+                target = GraphicsBuffer.Target.Append
+            };
+            var activePixelsHandle = renderGraph.CreateBuffer(bufferDesc);
+            lensData.ActivePixelsBufferHandle = activePixelsHandle;
+
             using (var builder = renderGraph.AddRasterRenderPass<PassData>("Lens Gatherer Pass", out var passData))
             {
-                passData.NormalBuffer = normalBufferHandle;
-                passData.DepthBuffer  = depthBufferHandle;
                 passData.RendererList = rendererListHandle;
 
                 builder.UseRendererList(rendererListHandle);
@@ -87,51 +109,6 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
                     context.cmd.DrawRendererList(data.RendererList);
                 });
             }
-        }
-    }
-
-    public class CompactionPass : ScriptableRenderPass
-    {
-        private ComputeShader lensCompute;
-        private int compactionKernel;
-
-        public CompactionPass(ComputeShader shader)
-        {
-            lensCompute = shader;
-            compactionKernel = lensCompute.FindKernel("NormalCompaction");
-        }
-
-        private class PassData
-        {
-            public ComputeShader Compute;
-            public int Kernel;
-
-            public int ThreadGroupsX;
-            public int ThreadGroupsY;
-
-            public TextureHandle NormalBuffer;
-            public BufferHandle ActivePixelsBuffer;
-        }
-
-        public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
-        {
-            var lensData   = frameData.Get<HybridLensData>();
-            var cameraData = frameData.Get<UniversalCameraData>();
-
-            int width = cameraData.cameraTargetDescriptor.width;
-            int height = cameraData.cameraTargetDescriptor.height;
-
-            var normalBufferHandle = lensData.NormalBufferHandle;
-
-            var bufferDesc = new BufferDesc(width * height, sizeof(uint) * 2)
-            {
-                name = "Active Lens Pixels Buffer",
-                target = GraphicsBuffer.Target.Append
-            };
-            var activePixelsHandle = renderGraph.CreateBuffer(bufferDesc);
-
-            lensData.ActivePixelsBufferHandle = activePixelsHandle;
-
             using (var builder = renderGraph.AddComputePass<PassData>("Lens Compaction Pass", out var passData))
             {
                 passData.Compute = lensCompute;
@@ -444,7 +421,6 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
     [SerializeField] private Cubemap skybox;
 
     private GatherPass gatherPass;
-    private CompactionPass compactionPass;
     private TracePass tracePass;
     private ProjectorPass projectorPass;
 
@@ -468,14 +444,11 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
         rtas = new RayTracingAccelerationStructure(settings);
 
         // Set up passes
-        gatherPass = new GatherPass();
+        gatherPass = new GatherPass(lensComputeShader);
         gatherPass.renderPassEvent = RenderPassEvent.AfterRenderingOpaques;
 
-        compactionPass = new CompactionPass(lensComputeShader);
-        compactionPass.renderPassEvent = RenderPassEvent.AfterRenderingOpaques + 1;
-
         tracePass = new TracePass(lensComputeShader, rtas, skybox);
-        tracePass.renderPassEvent = RenderPassEvent.AfterRenderingOpaques + 2;
+        tracePass.renderPassEvent = RenderPassEvent.AfterRenderingOpaques + 1;
 
         projectorPass = new ProjectorPass();
         projectorPass.renderPassEvent = RenderPassEvent.AfterRenderingSkybox;
@@ -500,7 +473,6 @@ public class HybridLensRendererFeature : ScriptableRendererFeature
         // TODO // Filter cameras?
 
         renderer.EnqueuePass(gatherPass);
-        renderer.EnqueuePass(compactionPass);
         renderer.EnqueuePass(tracePass);
         renderer.EnqueuePass(projectorPass);
     }
