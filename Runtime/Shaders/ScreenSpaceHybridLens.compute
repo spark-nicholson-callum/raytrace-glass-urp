@@ -35,7 +35,7 @@ StructuredBuffer<float3> _LensNormals;
 StructuredBuffer<uint> _LensIndices;
 float4x4 _LensInverseLocalToWorld;
 
-AppendStructuredBuffer<FallbackRay> _OccludedRayBuffer;
+AppendStructuredBuffer<FallbackPayload> _OccludedRayBuffer;
 
 [numthreads(8, 8, 1)]
 void NormalCompaction(uint3 id : SV_DispatchThreadID)
@@ -189,6 +189,7 @@ void TraceLens(uint3 id : SV_DispatchThreadID)
         _RayTraceOutput[frag] = float4(1.0, 0.0, 1.0, 1.0);
         return;
     }
+    FallbackPayload fallbackPayload;
     {
         RayDesc ray;
         ray.Origin = pos;
@@ -203,6 +204,13 @@ void TraceLens(uint3 id : SV_DispatchThreadID)
         {
             isHit = true;
             samplePos = ray.Origin + ray.Direction * q.CommittedRayT();
+
+            fallbackPayload.frag = frag;
+            fallbackPayload.instance = q.CommittedInstanceID();
+            fallbackPayload.primitive = q.CommittedPrimitiveIndex();
+            fallbackPayload.barycentrics = q.CommittedTriangleBarycentrics();
+
+            fallbackPayload.padding = (float2)0.0;
         }
         else
         {
@@ -218,13 +226,7 @@ void TraceLens(uint3 id : SV_DispatchThreadID)
         {
             // Output debug cyan
             _RayTraceOutput[frag] = float4(0.0, 1.0, 1.0, 1.0);
-
-            FallbackRay payload;
-            payload.frag = frag;
-            payload.origin = pos;
-            payload.direction = dir;
-
-            _OccludedRayBuffer.Append(payload);
+            _OccludedRayBuffer.Append(fallbackPayload);
         }
     }
     else

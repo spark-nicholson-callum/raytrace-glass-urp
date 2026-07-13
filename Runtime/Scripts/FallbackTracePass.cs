@@ -27,6 +27,11 @@ namespace CallumNicholson.RaytraceGlassURP
             public TextureHandle OutputTexture;
             public BufferHandle ArgsBuffer;
             public BufferHandle OccludedRayBuffer;
+
+            public TextureHandle GlobalTextureArray;
+            public ComputeBuffer GlobalInstanceDataBuffer;
+            public ComputeBuffer GlobalIndexBuffer;
+            public ComputeBuffer GlobalVertexBuffer;
         }
 
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
@@ -52,6 +57,15 @@ namespace CallumNicholson.RaytraceGlassURP
                 passData.ArgsBuffer = builder.UseBuffer(argsHandle, AccessFlags.Write);
                 passData.OccludedRayBuffer = builder.UseBuffer(lensData.OccludedRayBufferHandle, AccessFlags.Read);
 
+                passData.GlobalTextureArray = renderGraph.ImportTexture(
+                    RTHandles.Alloc(RayTracingSceneManager.Instance.GlobalTextureArray)
+                );
+                builder.UseTexture(passData.GlobalTextureArray);
+
+                passData.GlobalInstanceDataBuffer = RayTracingSceneManager.Instance.GlobalInstanceDataBuffer;
+                passData.GlobalIndexBuffer = RayTracingSceneManager.Instance.GlobalIndexBuffer;
+                passData.GlobalVertexBuffer = RayTracingSceneManager.Instance.GlobalVertexBuffer;
+
                 builder.SetRenderFunc(static (PassData data, ComputeGraphContext context) =>
                 {
                     // ScreenSpaceTracePass already built the RTAS
@@ -65,6 +79,12 @@ namespace CallumNicholson.RaytraceGlassURP
                     context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_RayTraceOutput", data.OutputTexture);
                     context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_IndirectArgsBuffer", data.ArgsBuffer);
                     context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_OccludedRayBuffer", data.OccludedRayBuffer);
+
+                    context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_GlobalTextures", data.GlobalTextureArray);
+                    context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_GlobalInstanceData", data.GlobalInstanceDataBuffer);
+                    context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_GlobalIndices", data.GlobalIndexBuffer);
+                    context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_GlobalVertices", data.GlobalVertexBuffer);
+
                     context.cmd.DispatchCompute(data.Compute, data.TraceKernel, data.ArgsBuffer, 0);
                 });
             }

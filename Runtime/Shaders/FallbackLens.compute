@@ -6,7 +6,14 @@
 RWTexture2D<float4> _RayTraceOutput;
 
 RWStructuredBuffer<uint> _IndirectArgsBuffer;
-StructuredBuffer<FallbackRay> _OccludedRayBuffer;
+StructuredBuffer<FallbackPayload> _OccludedRayBuffer;
+
+SamplerState sampler_LinearClamp;
+
+StructuredBuffer<MeshInstanceData> _GlobalInstanceData;
+StructuredBuffer<int> _GlobalIndices;
+StructuredBuffer<MeshVertexData> _GlobalVertices;
+Texture2DArray<float4> _GlobalTextures;
 
 [numthreads(1, 1, 1)]
 void ArgsSetup(uint3 id : SV_DispatchThreadID)
@@ -24,8 +31,30 @@ void FallbackTrace(uint3 id : SV_DispatchThreadID)
     uint activeRayCount = _IndirectArgsBuffer[3];
     if (id.x >= activeRayCount) return;
 
-    FallbackRay ray = _OccludedRayBuffer[id.x];
-    uint2 frag = ray.frag;
+    FallbackPayload payload = _OccludedRayBuffer[id.x];
+    uint2 frag = payload.frag;
 
-    _RayTraceOutput[frag] = float4(1.0, 1.0, 0.0, 1.0);
+    float w0 = 1.0 - payload.barycentrics.x - payload.barycentrics.y;
+    float w1 = payload.barycentrics.x;
+    float w2 = payload.barycentrics.y;
+
+    MeshInstanceData data = _GlobalInstanceData[payload.instance];
+
+    int i0 = _GlobalIndices[data.indexOffset + (payload.primitive * 3) + 0];
+    int i1 = _GlobalIndices[data.indexOffset + (payload.primitive * 3) + 1];
+    int i2 = _GlobalIndices[data.indexOffset + (payload.primitive * 3) + 2];
+
+    MeshVertexData v0 = _GlobalVertices[data.vertexOffset + i0];
+    MeshVertexData v1 = _GlobalVertices[data.vertexOffset + i1];
+    MeshVertexData v2 = _GlobalVertices[data.vertexOffset + i2];
+
+    float3 pos  = w0 * v0.position + w1 * v1.position + w2 * v2.position;
+    float3 norm = w0 * v0.normal   + w1 * v1.normal   + w2 * v2.normal;
+    float2 uv   = w0 * v0.uv       + w1 * v1.uv       + w2 * v2.uv;
+
+    int slice = data.textureSlice;
+
+    float4 albedo = _GlobalTextures.SampleLevel(sampler_LinearClamp, float3(uv.xy, slice), 0);
+
+    _RayTraceOutput[frag] = float4(albedo);
 }

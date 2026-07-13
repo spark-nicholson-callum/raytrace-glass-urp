@@ -11,7 +11,9 @@ namespace CallumNicholson.RaytraceGlassURP
 
         public RayTracingAccelerationStructure Rtas { get; private set; }
         public RenderTexture GlobalTextureArray { get; private set; }
-        public ComputeBuffer GlobalTextureIndexBuffer { get; private set; }
+        public ComputeBuffer GlobalInstanceDataBuffer { get; private set; }
+        public ComputeBuffer GlobalIndexBuffer { get; private set; }
+        public ComputeBuffer GlobalVertexBuffer { get; private set; }
 
         [SerializeField] private int MaxTextures = 64;
         [SerializeField] private int TextureResolution = 512;
@@ -58,10 +60,19 @@ namespace CallumNicholson.RaytraceGlassURP
                 .ToArray();
 
             var sliceData = new int[allRenderers.Length];
-            int currentIndex = 0;
 
+            List<MeshInstanceData> instanceData = new();
+            List<int>             indexData    = new();
+            List<MeshVertexData>   vertexData   = new();
+
+            // There is a delicate balance here with the index of the data.
+            // We *require* the instance data array and the RTAS be in the same order
             foreach (var renderer in allRenderers)
             {
+                MeshFilter meshFilter = renderer.GetComponent<MeshFilter>();
+                if (meshFilter == null || meshFilter.sharedMesh == null) continue;
+                var mesh = meshFilter.sharedMesh;
+
                 int subMeshCount = renderer.sharedMaterials.Length;
                 var subMeshFlags = Enumerable.Range(0, subMeshCount)
                     .Select(x => RayTracingSubMeshFlags.Enabled | RayTracingSubMeshFlags.ClosestHitOnly)
@@ -72,14 +83,41 @@ namespace CallumNicholson.RaytraceGlassURP
                 Texture mainTexture = null;
                 if (renderer.sharedMaterial != null && renderer.sharedMaterial.HasProperty("_MainTex"))
                     mainTexture = renderer.sharedMaterial.mainTexture;
-                sliceData[currentIndex] = GetTextureSlice(mainTexture);
 
-                ++currentIndex;
+                instanceData.Add(new MeshInstanceData
+                {
+                    textureSlice = GetTextureSlice(mainTexture),
+                    indexOffset = indexData.Count,
+                    vertexOffset = vertexData.Count,
+                    padding = 0f,
+                    localToWorld = renderer.transform.localToWorldMatrix,
+                    worldToLocal = renderer.transform.worldToLocalMatrix,
+                });
+
+                indexData.AddRange(mesh.triangles);
+
+                vertexData.AddRange(mesh.vertices
+                    .Zip(mesh.normals, (vert, norm) => new {vert, norm})
+                    .Zip(mesh.uv, (data, uv) => new MeshVertexData
+                    {
+                        position = data.vert,
+                        normal = data.norm,
+                        uv = uv,
+                    })
+                );
             }
 
-            if (GlobalTextureIndexBuffer != null) GlobalTextureIndexBuffer.Release();
-            GlobalTextureIndexBuffer = new ComputeBuffer(Mathf.Max(1, allRenderers.Length), 4);
-            GlobalTextureIndexBuffer.SetData(sliceData);
+            if (GlobalInstanceDataBuffer != null) GlobalInstanceDataBuffer.Release();
+            GlobalInstanceDataBuffer = new ComputeBuffer(Mathf.Max(1, instanceData.Count), MeshInstanceData.Size);
+            GlobalInstanceDataBuffer.SetData(instanceData);
+
+            if (GlobalIndexBuffer != null) GlobalIndexBuffer.Release();
+            GlobalIndexBuffer = new ComputeBuffer(Mathf.Max(1, indexData.Count), sizeof(uint));
+            GlobalIndexBuffer.SetData(indexData);
+
+            if (GlobalVertexBuffer != null) GlobalVertexBuffer.Release();
+            GlobalVertexBuffer = new ComputeBuffer(Mathf.Max(1, vertexData.Count), MeshVertexData.Size);
+            GlobalVertexBuffer.SetData(vertexData);
         }
 
         public int GetTextureSlice(Texture source)
@@ -105,7 +143,9 @@ namespace CallumNicholson.RaytraceGlassURP
             if (Instance == this) Instance = null;
             if (Rtas != null) Rtas.Release();
             if (GlobalTextureArray != null) GlobalTextureArray.Release();
-            if (GlobalTextureIndexBuffer != null) GlobalTextureIndexBuffer.Release();
+            if (GlobalInstanceDataBuffer != null) GlobalInstanceDataBuffer.Release();
+            if (GlobalIndexBuffer != null) GlobalIndexBuffer.Release();
+            if (GlobalVertexBuffer != null) GlobalVertexBuffer.Release();
             if (fallbackTexture != null) Destroy(fallbackTexture);
         }
     }
