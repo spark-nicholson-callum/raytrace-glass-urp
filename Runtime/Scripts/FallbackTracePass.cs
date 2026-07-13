@@ -30,6 +30,7 @@ namespace CallumNicholson.RaytraceGlassURP
 
             public TextureHandle GlobalTextureArray;
             public ComputeBuffer GlobalInstanceDataBuffer;
+            public ComputeBuffer GlobalSubmeshDataBuffer;
             public ComputeBuffer GlobalIndexBuffer;
             public ComputeBuffer GlobalVertexBuffer;
         }
@@ -63,6 +64,7 @@ namespace CallumNicholson.RaytraceGlassURP
                 builder.UseTexture(passData.GlobalTextureArray);
 
                 passData.GlobalInstanceDataBuffer = RayTracingSceneManager.Instance.GlobalInstanceDataBuffer;
+                passData.GlobalSubmeshDataBuffer = RayTracingSceneManager.Instance.GlobalSubmeshDataBuffer;
                 passData.GlobalIndexBuffer = RayTracingSceneManager.Instance.GlobalIndexBuffer;
                 passData.GlobalVertexBuffer = RayTracingSceneManager.Instance.GlobalVertexBuffer;
 
@@ -82,6 +84,7 @@ namespace CallumNicholson.RaytraceGlassURP
 
                     context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_GlobalTextures", data.GlobalTextureArray);
                     context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_GlobalInstanceData", data.GlobalInstanceDataBuffer);
+                    context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_GlobalSubmeshData", data.GlobalSubmeshDataBuffer);
                     context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_GlobalIndices", data.GlobalIndexBuffer);
                     context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_GlobalVertices", data.GlobalVertexBuffer);
 

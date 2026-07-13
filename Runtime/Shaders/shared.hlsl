@@ -5,14 +5,26 @@ struct FallbackPayload
 {
     uint2 frag;             // 8
     uint instance;          // 4
+    uint submesh;           // 4
     uint primitive;         // 4
     float2 barycentrics;    // 8
 
-    float2 padding;         // 8
+    float padding;          // 4
     // = 32 = 16 * 2 Bytes
 };
 
 struct MeshInstanceData
+{
+    int submeshOffset;      // 4
+
+    float3 padding;         // 12
+
+    float4x4 localToWorld;  // 64
+    float4x4 worldToLocal;  // 64
+    // = 144 = 16 * 9 Bytes
+};
+
+struct SubmeshData
 {
     int textureSlice;       // 4
     int indexOffset;        // 4
@@ -21,9 +33,7 @@ struct MeshInstanceData
     float padding;          // 4
 
     float4 uvTransform;     // 16
-    float4x4 localToWorld;  // 64
-    float4x4 worldToLocal;  // 64
-    // = 160 = 16 * 10 Bytes
+    // = 32 = 16 * 2 Bytes
 };
 
 struct MeshVertexData

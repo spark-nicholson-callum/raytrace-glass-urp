@@ -12,6 +12,7 @@ namespace CallumNicholson.RaytraceGlassURP
         public RayTracingAccelerationStructure Rtas { get; private set; }
         public RenderTexture GlobalTextureArray { get; private set; }
         public ComputeBuffer GlobalInstanceDataBuffer { get; private set; }
+        public ComputeBuffer GlobalSubmeshDataBuffer { get; private set; }
         public ComputeBuffer GlobalIndexBuffer { get; private set; }
         public ComputeBuffer GlobalVertexBuffer { get; private set; }
 
@@ -62,7 +63,8 @@ namespace CallumNicholson.RaytraceGlassURP
             var sliceData = new int[allRenderers.Length];
 
             List<MeshInstanceData> instanceData = new();
-            List<int>             indexData    = new();
+            List<SubmeshData>      submeshData  = new();
+            List<int>              indexData    = new();
             List<MeshVertexData>   vertexData   = new();
 
             // There is a delicate balance here with the index of the data.
@@ -78,34 +80,38 @@ namespace CallumNicholson.RaytraceGlassURP
                     .Select(x => RayTracingSubMeshFlags.Enabled | RayTracingSubMeshFlags.ClosestHitOnly)
                     .ToArray();
 
-                Rtas.AddInstance(renderer, subMeshFlags);
-
-                Texture mainTexture = null;
-                if (renderer.sharedMaterial != null && renderer.sharedMaterial.HasProperty("_MainTex"))
-                    mainTexture = renderer.sharedMaterial.mainTexture;
-
-                Vector4 uvTransform = new Vector4(1, 1, 0, 0);
-
-                if (renderer.sharedMaterial != null)
-                {
-                   if (renderer.sharedMaterial.HasProperty("_BaseMap_ST"))
-                       uvTransform = renderer.sharedMaterial.GetVector("_BaseMap_ST");
-                   if (renderer.sharedMaterial.HasProperty("_MainTex_ST"))
-                       uvTransform = renderer.sharedMaterial.GetVector("_MainTex_ST");
-                }
+                Rtas.AddInstance(renderer, subMeshFlags, id: (uint)instanceData.Count);
 
                 instanceData.Add(new MeshInstanceData
                 {
-                    textureSlice = GetTextureSlice(mainTexture),
-                    indexOffset = indexData.Count,
-                    vertexOffset = vertexData.Count,
-                    padding = 0f,
-                    uvTransform = uvTransform,
+                    submeshOffset = submeshData.Count,
                     localToWorld = renderer.transform.localToWorldMatrix,
                     worldToLocal = renderer.transform.worldToLocalMatrix,
                 });
 
-                indexData.AddRange(mesh.triangles);
+                int submeshIndex = 0;
+                foreach (var material in renderer.sharedMaterials)
+                {
+                    Texture texture = null;
+                    if (material.HasProperty("_MainTex")) texture = material.mainTexture;
+
+                    Vector4 uvTransform = new Vector4(1, 1, 0, 0);
+                    if (material.HasProperty("_BaseMap_ST")) uvTransform = material.GetVector("_BaseMap_ST");
+                    if (material.HasProperty("_MainTex_ST")) uvTransform = material.GetVector("_MainTex_ST");
+
+                    submeshData.Add(new SubmeshData
+                    {
+                        textureSlice = GetTextureSlice(texture),
+                        indexOffset = indexData.Count,
+                        vertexOffset = vertexData.Count,
+                        padding = 0f,
+                        uvTransform = uvTransform,
+                    });
+
+                    indexData.AddRange(mesh.GetIndices(submeshIndex));
+
+                    ++submeshIndex;
+                }
 
                 vertexData.AddRange(mesh.vertices
                     .Zip(mesh.normals, (vert, norm) => new {vert, norm})
@@ -121,6 +127,10 @@ namespace CallumNicholson.RaytraceGlassURP
             if (GlobalInstanceDataBuffer != null) GlobalInstanceDataBuffer.Release();
             GlobalInstanceDataBuffer = new ComputeBuffer(Mathf.Max(1, instanceData.Count), MeshInstanceData.Size);
             GlobalInstanceDataBuffer.SetData(instanceData);
+
+            if (GlobalSubmeshDataBuffer != null) GlobalSubmeshDataBuffer.Release();
+            GlobalSubmeshDataBuffer = new ComputeBuffer(Mathf.Max(1, submeshData.Count), SubmeshData.Size);
+            GlobalSubmeshDataBuffer.SetData(submeshData);
 
             if (GlobalIndexBuffer != null) GlobalIndexBuffer.Release();
             GlobalIndexBuffer = new ComputeBuffer(Mathf.Max(1, indexData.Count), sizeof(uint));
@@ -155,6 +165,7 @@ namespace CallumNicholson.RaytraceGlassURP
             if (Rtas != null) Rtas.Release();
             if (GlobalTextureArray != null) GlobalTextureArray.Release();
             if (GlobalInstanceDataBuffer != null) GlobalInstanceDataBuffer.Release();
+            if (GlobalSubmeshDataBuffer != null) GlobalSubmeshDataBuffer.Release();
             if (GlobalIndexBuffer != null) GlobalIndexBuffer.Release();
             if (GlobalVertexBuffer != null) GlobalVertexBuffer.Release();
             if (fallbackTexture != null) Destroy(fallbackTexture);

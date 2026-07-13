@@ -207,10 +207,11 @@ void TraceLens(uint3 id : SV_DispatchThreadID)
 
             fallbackPayload.frag = frag;
             fallbackPayload.instance = q.CommittedInstanceID();
+            fallbackPayload.submesh = q.CommittedGeometryIndex();
             fallbackPayload.primitive = q.CommittedPrimitiveIndex();
             fallbackPayload.barycentrics = q.CommittedTriangleBarycentrics();
 
-            fallbackPayload.padding = (float2)0.0;
+            fallbackPayload.padding = 0.0;
         }
         else
         {

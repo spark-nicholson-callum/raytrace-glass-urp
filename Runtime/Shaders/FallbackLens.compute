@@ -11,6 +11,7 @@ StructuredBuffer<FallbackPayload> _OccludedRayBuffer;
 SamplerState sampler_LinearRepeat;
 
 StructuredBuffer<MeshInstanceData> _GlobalInstanceData;
+StructuredBuffer<SubmeshData> _GlobalSubmeshData;
 StructuredBuffer<int> _GlobalIndices;
 StructuredBuffer<MeshVertexData> _GlobalVertices;
 Texture2DArray<float4> _GlobalTextures;
@@ -39,22 +40,23 @@ void FallbackTrace(uint3 id : SV_DispatchThreadID)
     float w2 = payload.barycentrics.y;
 
     MeshInstanceData data = _GlobalInstanceData[payload.instance];
+    SubmeshData smData = _GlobalSubmeshData[data.submeshOffset + payload.submesh];
 
-    int i0 = _GlobalIndices[data.indexOffset + (payload.primitive * 3) + 0];
-    int i1 = _GlobalIndices[data.indexOffset + (payload.primitive * 3) + 1];
-    int i2 = _GlobalIndices[data.indexOffset + (payload.primitive * 3) + 2];
+    int i0 = _GlobalIndices[smData.indexOffset + (payload.primitive * 3) + 0];
+    int i1 = _GlobalIndices[smData.indexOffset + (payload.primitive * 3) + 1];
+    int i2 = _GlobalIndices[smData.indexOffset + (payload.primitive * 3) + 2];
 
-    MeshVertexData v0 = _GlobalVertices[data.vertexOffset + i0];
-    MeshVertexData v1 = _GlobalVertices[data.vertexOffset + i1];
-    MeshVertexData v2 = _GlobalVertices[data.vertexOffset + i2];
+    MeshVertexData v0 = _GlobalVertices[smData.vertexOffset + i0];
+    MeshVertexData v1 = _GlobalVertices[smData.vertexOffset + i1];
+    MeshVertexData v2 = _GlobalVertices[smData.vertexOffset + i2];
 
     float3 pos  = w0 * v0.position + w1 * v1.position + w2 * v2.position;
     float3 norm = w0 * v0.normal   + w1 * v1.normal   + w2 * v2.normal;
     float2 uv   = w0 * v0.uv       + w1 * v1.uv       + w2 * v2.uv;
 
-    uv = uv * data.uvTransform.xy + data.uvTransform.zw;
+    uv = uv * smData.uvTransform.xy + smData.uvTransform.zw;
 
-    int slice = data.textureSlice;
+    int slice = smData.textureSlice;
 
     float4 albedo = _GlobalTextures.SampleLevel(sampler_LinearRepeat, float3(uv.xy, slice), 0);
 
