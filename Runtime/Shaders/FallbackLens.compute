@@ -8,7 +8,7 @@ RWTexture2D<float4> _RayTraceOutput;
 RWStructuredBuffer<uint> _IndirectArgsBuffer;
 StructuredBuffer<FallbackPayload> _OccludedRayBuffer;
 
-SamplerState sampler_LinearClamp;
+SamplerState sampler_LinearRepeat;
 
 StructuredBuffer<MeshInstanceData> _GlobalInstanceData;
 StructuredBuffer<int> _GlobalIndices;
@@ -52,9 +52,11 @@ void FallbackTrace(uint3 id : SV_DispatchThreadID)
     float3 norm = w0 * v0.normal   + w1 * v1.normal   + w2 * v2.normal;
     float2 uv   = w0 * v0.uv       + w1 * v1.uv       + w2 * v2.uv;
 
+    uv = uv * data.uvTransform.xy + data.uvTransform.zw;
+
     int slice = data.textureSlice;
 
-    float4 albedo = _GlobalTextures.SampleLevel(sampler_LinearClamp, float3(uv.xy, slice), 0);
+    float4 albedo = _GlobalTextures.SampleLevel(sampler_LinearRepeat, float3(uv.xy, slice), 0);
 
     _RayTraceOutput[frag] = float4(albedo);
 }

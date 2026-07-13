@@ -84,12 +84,23 @@ namespace CallumNicholson.RaytraceGlassURP
                 if (renderer.sharedMaterial != null && renderer.sharedMaterial.HasProperty("_MainTex"))
                     mainTexture = renderer.sharedMaterial.mainTexture;
 
+                Vector4 uvTransform = new Vector4(1, 1, 0, 0);
+
+                if (renderer.sharedMaterial != null)
+                {
+                   if (renderer.sharedMaterial.HasProperty("_BaseMap_ST"))
+                       uvTransform = renderer.sharedMaterial.GetVector("_BaseMap_ST");
+                   if (renderer.sharedMaterial.HasProperty("_MainTex_ST"))
+                       uvTransform = renderer.sharedMaterial.GetVector("_MainTex_ST");
+                }
+
                 instanceData.Add(new MeshInstanceData
                 {
                     textureSlice = GetTextureSlice(mainTexture),
                     indexOffset = indexData.Count,
                     vertexOffset = vertexData.Count,
                     padding = 0f,
+                    uvTransform = uvTransform,
                     localToWorld = renderer.transform.localToWorldMatrix,
                     worldToLocal = renderer.transform.worldToLocalMatrix,
                 });

@@ -4,13 +4,14 @@ namespace CallumNicholson.RaytraceGlassURP
 {
     public struct MeshInstanceData
     {
-        public const int Size = 144;
+        public const int Size = 160;
         public int textureSlice;
         public int indexOffset;
         public int vertexOffset;
 
         public float padding;
 
+        public Vector4 uvTransform;
         public Matrix4x4 localToWorld;
         public Matrix4x4 worldToLocal;
     }

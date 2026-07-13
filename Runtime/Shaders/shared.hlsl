@@ -9,7 +9,7 @@ struct FallbackPayload
     float2 barycentrics;    // 8
 
     float2 padding;         // 8
-    // = 32 Bytes
+    // = 32 = 16 * 2 Bytes
 };
 
 struct MeshInstanceData
@@ -20,9 +20,10 @@ struct MeshInstanceData
 
     float padding;          // 4
 
+    float4 uvTransform;     // 16
     float4x4 localToWorld;  // 64
     float4x4 worldToLocal;  // 64
-    // = 144 = 16 * 9 Bytes
+    // = 160 = 16 * 10 Bytes
 };
 
 struct MeshVertexData
