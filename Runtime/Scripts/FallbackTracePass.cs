@@ -67,8 +67,9 @@ namespace CallumNicholson.RaytraceGlassURP
 
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
         {
-            var lensData = frameData.Get<HybridLensRendererFeature.HybridLensData>();
+            var lensData   = frameData.Get<HybridLensRendererFeature.HybridLensData>();
             var cameraData = frameData.Get<UniversalCameraData>();
+            var lightData  = frameData.Get<UniversalLightData>();
 
             BufferDesc argsDesc = new BufferDesc(4, sizeof(uint))
             {
@@ -77,11 +78,13 @@ namespace CallumNicholson.RaytraceGlassURP
             };
             BufferHandle argsHandle = renderGraph.CreateBuffer(argsDesc);
 
-            Light mainLight = RenderSettings.sun;
+            VisibleLight? mainLight = null;
+            if (lightData.mainLightIndex >= 0) mainLight = lightData.visibleLights[lightData.mainLightIndex];
+
             if (mainLight == null)
             {
-                mainLight = Object.FindObjectsByType<Light>()
-                    .Where(l => l.type == LightType.Directional)
+                mainLight = lightData.visibleLights
+                    .Where(l => l.lightType == LightType.Directional)
                     .FirstOrDefault();
             }
 
@@ -102,16 +105,8 @@ namespace CallumNicholson.RaytraceGlassURP
                 );
                 builder.UseTexture(passData.GlobalTextureArray);
 
-                if (mainLight != null)
-                {
-                    passData.MainLightDirection = -mainLight.transform.forward;
-                    passData.MainLightColor = mainLight.color.linear * mainLight.intensity;
-                }
-                else
-                {
-                    passData.MainLightDirection = Vector3.up;
-                    passData.MainLightColor = Color.black.linear;
-                }
+                passData.MainLightDirection = -mainLight?.light?.transform?.forward ?? Vector3.up;
+                passData.MainLightColor = mainLight?.finalColor ?? Color.black.linear;
 
                 passData.CameraPos = cameraData.worldSpaceCameraPos;
 
