@@ -46,6 +46,8 @@ namespace CallumNicholson.RaytraceGlassURP
             public Vector3 MainLightDirection;
             public Color MainLightColor;
             public Vector3 CameraPos;
+            public bool HasShadows;
+            public bool HasCascades;
 
             public TextureHandle SkyboxTexture;
             public Matrix4x4 SkyRotation;
@@ -110,6 +112,9 @@ namespace CallumNicholson.RaytraceGlassURP
 
                 passData.CameraPos = cameraData.worldSpaceCameraPos;
 
+                passData.HasShadows = (mainLight?.light?.shadows ?? LightShadows.None) != LightShadows.None;
+                passData.HasCascades = passData.HasShadows && QualitySettings.shadowCascades > 1;
+
                 SphericalHarmonicsL2 sh = RenderSettings.ambientProbe;
                 passData.SHAr = new Vector4(sh[0, 3], sh[0, 1], sh[0, 2], sh[0, 0] - sh[0, 6]);
                 passData.SHAg = new Vector4(sh[1, 3], sh[1, 1], sh[1, 2], sh[1, 0] - sh[1, 6]);
@@ -137,6 +142,7 @@ namespace CallumNicholson.RaytraceGlassURP
                 passData.GlobalIndexBuffer = RayTracingSceneManager.Instance.GlobalIndexBuffer;
                 passData.GlobalVertexBuffer = RayTracingSceneManager.Instance.GlobalVertexBuffer;
 
+                builder.AllowGlobalStateModification(true);
                 builder.SetRenderFunc(static (PassData data, ComputeGraphContext context) =>
                 {
                     // ScreenSpaceTracePass already built the RTAS
@@ -154,6 +160,22 @@ namespace CallumNicholson.RaytraceGlassURP
                     context.cmd.SetComputeVectorParam(data.Compute, "_MainLightDirection", data.MainLightDirection);
                     context.cmd.SetComputeVectorParam(data.Compute, "_MainLightColor", data.MainLightColor);
                     context.cmd.SetComputeVectorParam(data.Compute, "_CameraPos", data.CameraPos);
+
+                    if (data.HasCascades)
+                    {
+                        context.cmd.DisableShaderKeyword("_MAIN_LIGHT_SHADOWS");
+                        context.cmd.EnableShaderKeyword("_MAIN_LIGHT_SHADOWS_CASCADE");
+                    }
+                    else if (data.HasShadows)
+                    {
+                        context.cmd.EnableShaderKeyword("_MAIN_LIGHT_SHADOWS");
+                        context.cmd.DisableShaderKeyword("_MAIN_LIGHT_SHADOWS_CASCADE");
+                    }
+                    else
+                    {
+                        context.cmd.DisableShaderKeyword("_MAIN_LIGHT_SHADOWS");
+                        context.cmd.DisableShaderKeyword("_MAIN_LIGHT_SHADOWS_CASCADE");
+                    }
 
                     if (data.SkyboxTexture.IsValid())
                     {

@@ -1,6 +1,10 @@
 #pragma kernel ArgsSetup
 #pragma kernel FallbackTrace
 
+#pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
+
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
 #include "shared.hlsl"
 
 RWTexture2D<float4> _RayTraceOutput;
@@ -8,24 +12,12 @@ RWTexture2D<float4> _RayTraceOutput;
 RWStructuredBuffer<uint> _IndirectArgsBuffer;
 StructuredBuffer<FallbackPayload> _OccludedRayBuffer;
 
-SamplerState sampler_LinearRepeat;
-
 float3 _MainLightDirection;
-float3 _MainLightColor;
 float3 _CameraPos;
 
 TextureCube _SkyboxTexture;
 SamplerState sampler_SkyboxTexture;
 float4x4 _SkyRotation;
-
-// SH variables are globally set by URP
-float4 unity_SHAr;
-float4 unity_SHAg;
-float4 unity_SHAb;
-float4 unity_SHBr;
-float4 unity_SHBg;
-float4 unity_SHBb;
-float4 unity_SHC;
 
 float3 SampleSH(float3 normalWS)
 {
@@ -101,8 +93,11 @@ void FallbackTrace(uint3 id : SV_DispatchThreadID)
     float4 albedo = _GlobalTextures.SampleLevel(sampler_LinearRepeat, float3(uv.xy, slice), 0);
     albedo *= smData.baseColor;
 
+    float4 shadowCoord = TransformWorldToShadowCoord(worldPos);
+    half shadowAtten = MainLightRealtimeShadow(shadowCoord);
+
     float NdotL = max(0.0, dot(worldNorm, _MainLightDirection));
-    float3 radiance = _MainLightColor * NdotL;
+    float3 radiance = _MainLightColor * NdotL * shadowAtten;
 
     // Energy conserved diffuse (assuming non-metal, F0 = 0.04)
     float3 diffuseColor = albedo.rgb * 0.96;
