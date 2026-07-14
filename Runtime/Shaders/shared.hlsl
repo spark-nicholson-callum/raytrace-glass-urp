@@ -32,8 +32,9 @@ struct SubmeshData
 
     float padding;          // 4
 
+    float4 baseColor;       // 16
     float4 uvTransform;     // 16
-    // = 32 = 16 * 2 Bytes
+    // = 48 = 16 * 3 Bytes
 };
 
 struct MeshVertexData

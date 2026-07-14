@@ -1,3 +1,4 @@
+using System.Linq;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
@@ -28,6 +29,10 @@ namespace CallumNicholson.RaytraceGlassURP
             public BufferHandle ArgsBuffer;
             public BufferHandle OccludedRayBuffer;
 
+            public Vector3 MainLightDirection;
+            public Color MainLightColor;
+            public Color AmbientColor;
+
             public TextureHandle GlobalTextureArray;
             public ComputeBuffer GlobalInstanceDataBuffer;
             public ComputeBuffer GlobalSubmeshDataBuffer;
@@ -46,6 +51,14 @@ namespace CallumNicholson.RaytraceGlassURP
             };
             BufferHandle argsHandle = renderGraph.CreateBuffer(argsDesc);
 
+            Light mainLight = RenderSettings.sun;
+            if (mainLight == null)
+            {
+                mainLight = Object.FindObjectsByType<Light>()
+                    .Where(l => l.type == LightType.Directional)
+                    .FirstOrDefault();
+            }
+
             using (var builder = renderGraph.AddComputePass<PassData>("Trace Lookup Pass", out var passData))
             {
                 passData.Compute = fallbackCompute;
@@ -62,6 +75,18 @@ namespace CallumNicholson.RaytraceGlassURP
                     RTHandles.Alloc(RayTracingSceneManager.Instance.GlobalTextureArray)
                 );
                 builder.UseTexture(passData.GlobalTextureArray);
+
+                if (mainLight != null)
+                {
+                    passData.MainLightDirection = -mainLight.transform.forward;
+                    passData.MainLightColor = mainLight.color.linear * mainLight.intensity;
+                }
+                else
+                {
+                    passData.MainLightDirection = Vector3.up;
+                    passData.MainLightColor = Color.black.linear;
+                }
+                passData.AmbientColor = RenderSettings.ambientSkyColor.linear;
 
                 passData.GlobalInstanceDataBuffer = RayTracingSceneManager.Instance.GlobalInstanceDataBuffer;
                 passData.GlobalSubmeshDataBuffer = RayTracingSceneManager.Instance.GlobalSubmeshDataBuffer;
@@ -81,6 +106,10 @@ namespace CallumNicholson.RaytraceGlassURP
                     context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_RayTraceOutput", data.OutputTexture);
                     context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_IndirectArgsBuffer", data.ArgsBuffer);
                     context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_OccludedRayBuffer", data.OccludedRayBuffer);
+
+                    context.cmd.SetComputeVectorParam(data.Compute, "_MainLightDirection", data.MainLightDirection);
+                    context.cmd.SetComputeVectorParam(data.Compute, "_MainLightColor", data.MainLightColor);
+                    context.cmd.SetComputeVectorParam(data.Compute, "_AmbientColor", data.AmbientColor);
 
                     context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_GlobalTextures", data.GlobalTextureArray);
                     context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_GlobalInstanceData", data.GlobalInstanceDataBuffer);

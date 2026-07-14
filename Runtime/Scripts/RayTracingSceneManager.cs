@@ -96,8 +96,12 @@ namespace CallumNicholson.RaytraceGlassURP
                     if (material.HasProperty("_MainTex")) texture = material.mainTexture;
 
                     Vector4 uvTransform = new Vector4(1, 1, 0, 0);
-                    if (material.HasProperty("_BaseMap_ST")) uvTransform = material.GetVector("_BaseMap_ST");
-                    if (material.HasProperty("_MainTex_ST")) uvTransform = material.GetVector("_MainTex_ST");
+                    if      (material.HasProperty("_BaseMap_ST")) uvTransform = material.GetVector("_BaseMap_ST");
+                    else if (material.HasProperty("_MainTex_ST")) uvTransform = material.GetVector("_MainTex_ST");
+
+                    Color baseColor = Color.white;
+                    if      (material.HasProperty("_BaseColor")) baseColor = material.GetColor("_BaseColor");
+                    else if (material.HasProperty("_Color"))     baseColor = material.GetColor("_Color");
 
                     submeshData.Add(new SubmeshData
                     {
@@ -105,6 +109,7 @@ namespace CallumNicholson.RaytraceGlassURP
                         indexOffset = indexData.Count,
                         vertexOffset = vertexData.Count,
                         padding = 0f,
+                        baseColor = baseColor.linear,
                         uvTransform = uvTransform,
                     });
 

@@ -10,6 +10,10 @@ StructuredBuffer<FallbackPayload> _OccludedRayBuffer;
 
 SamplerState sampler_LinearRepeat;
 
+float3 _MainLightDirection;
+float3 _MainLightColor;
+float3 _AmbientColor;
+
 StructuredBuffer<MeshInstanceData> _GlobalInstanceData;
 StructuredBuffer<SubmeshData> _GlobalSubmeshData;
 StructuredBuffer<int> _GlobalIndices;
@@ -54,11 +58,16 @@ void FallbackTrace(uint3 id : SV_DispatchThreadID)
     float3 norm = w0 * v0.normal   + w1 * v1.normal   + w2 * v2.normal;
     float2 uv   = w0 * v0.uv       + w1 * v1.uv       + w2 * v2.uv;
 
+    float3 worldNorm = normalize(mul(norm, (float3x3)data.worldToLocal));
+
     uv = uv * smData.uvTransform.xy + smData.uvTransform.zw;
-
     int slice = smData.textureSlice;
-
     float4 albedo = _GlobalTextures.SampleLevel(sampler_LinearRepeat, float3(uv.xy, slice), 0);
+    albedo *= smData.baseColor;
 
-    _RayTraceOutput[frag] = float4(albedo);
+    float NdotL = max(0.0, dot(worldNorm, _MainLightDirection));
+    float3 light = _MainLightColor * NdotL + _AmbientColor;
+    float3 finalColor = light * albedo.rgb;
+
+    _RayTraceOutput[frag] = float4(finalColor, albedo.a);
 }
