@@ -52,7 +52,7 @@ namespace CallumNicholson.RaytraceGlassURP
             tracePass = new ScreenSpaceTracePass(lensComputeShader, skybox);
             tracePass.renderPassEvent = RenderPassEvent.AfterRenderingOpaques + 1;
 
-            fallbackTracePass = new FallbackTracePass(fallbackComputeShader);
+            fallbackTracePass = new FallbackTracePass(fallbackComputeShader, skybox);
             fallbackTracePass.renderPassEvent = RenderPassEvent.AfterRenderingOpaques + 2;
 
             projectorPass = new LensProjectorPass();
@@ -62,6 +62,7 @@ namespace CallumNicholson.RaytraceGlassURP
         protected override void Dispose(bool disposing)
         {
             if (tracePass != null) tracePass.Dispose();
+            if (fallbackTracePass != null) fallbackTracePass.Dispose();
         }
 
         public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)

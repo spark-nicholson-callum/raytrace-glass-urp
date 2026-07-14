@@ -12,11 +12,25 @@ namespace CallumNicholson.RaytraceGlassURP
         private int setupKernel;
         private int traceKernel;
 
-        public FallbackTracePass(ComputeShader shader)
+        private Texture skybox;
+        private RTHandle skyboxHandle;
+
+        public FallbackTracePass(ComputeShader shader, Texture skybox)
         {
             fallbackCompute = shader;
             setupKernel = fallbackCompute.FindKernel("ArgsSetup");
             traceKernel = fallbackCompute.FindKernel("FallbackTrace");
+
+            this.skybox = skybox;
+            if (skybox != null)
+            {
+                skyboxHandle = RTHandles.Alloc(skybox);
+            }
+        }
+
+        public void Dispose()
+        {
+            if (skyboxHandle != null) skyboxHandle.Release();
         }
 
         private class PassData
@@ -32,6 +46,9 @@ namespace CallumNicholson.RaytraceGlassURP
             public Vector3 MainLightDirection;
             public Color MainLightColor;
             public Vector3 CameraPos;
+
+            public TextureHandle SkyboxTexture;
+            public Matrix4x4 SkyRotation;
 
             public Vector4 SHAr;
             public Vector4 SHAg;
@@ -51,6 +68,7 @@ namespace CallumNicholson.RaytraceGlassURP
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
         {
             var lensData = frameData.Get<HybridLensRendererFeature.HybridLensData>();
+            var cameraData = frameData.Get<UniversalCameraData>();
 
             BufferDesc argsDesc = new BufferDesc(4, sizeof(uint))
             {
@@ -95,6 +113,8 @@ namespace CallumNicholson.RaytraceGlassURP
                     passData.MainLightColor = Color.black.linear;
                 }
 
+                passData.CameraPos = cameraData.worldSpaceCameraPos;
+
                 SphericalHarmonicsL2 sh = RenderSettings.ambientProbe;
                 passData.SHAr = new Vector4(sh[0, 3], sh[0, 1], sh[0, 2], sh[0, 0] - sh[0, 6]);
                 passData.SHAg = new Vector4(sh[1, 3], sh[1, 1], sh[1, 2], sh[1, 0] - sh[1, 6]);
@@ -103,6 +123,19 @@ namespace CallumNicholson.RaytraceGlassURP
                 passData.SHBg = new Vector4(sh[1, 4], sh[1, 5], sh[1, 6] * 3.0f, sh[1, 7]);
                 passData.SHBb = new Vector4(sh[2, 4], sh[2, 5], sh[2, 6] * 3.0f, sh[2, 7]);
                 passData.SHC  = new Vector4(sh[0, 8], sh[1, 8], sh[2, 8], 1.0f);
+
+                if (skyboxHandle != null)
+                {
+                    passData.SkyboxTexture = renderGraph.ImportTexture(skyboxHandle);
+                    builder.UseTexture(passData.SkyboxTexture, AccessFlags.Read);
+                }
+
+                float skyRotation = 0f;
+                if (RenderSettings.skybox != null && RenderSettings.skybox.HasProperty("_Rotation"))
+                {
+                    skyRotation = RenderSettings.skybox.GetFloat("_Rotation");
+                }
+                passData.SkyRotation = Matrix4x4.Rotate(Quaternion.Euler(0, skyRotation, 0));
 
                 passData.GlobalInstanceDataBuffer = RayTracingSceneManager.Instance.GlobalInstanceDataBuffer;
                 passData.GlobalSubmeshDataBuffer = RayTracingSceneManager.Instance.GlobalSubmeshDataBuffer;
@@ -125,6 +158,13 @@ namespace CallumNicholson.RaytraceGlassURP
 
                     context.cmd.SetComputeVectorParam(data.Compute, "_MainLightDirection", data.MainLightDirection);
                     context.cmd.SetComputeVectorParam(data.Compute, "_MainLightColor", data.MainLightColor);
+                    context.cmd.SetComputeVectorParam(data.Compute, "_CameraPos", data.CameraPos);
+
+                    if (data.SkyboxTexture.IsValid())
+                    {
+                        context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_SkyboxTexture", data.SkyboxTexture);
+                    }
+                    context.cmd.SetComputeMatrixParam(data.Compute, "_SkyRotation", data.SkyRotation);
 
                     context.cmd.SetComputeVectorParam(data.Compute, "unity_SHAr", data.SHAr);
                     context.cmd.SetComputeVectorParam(data.Compute, "unity_SHAg", data.SHAg);

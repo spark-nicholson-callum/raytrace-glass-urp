@@ -12,6 +12,11 @@ SamplerState sampler_LinearRepeat;
 
 float3 _MainLightDirection;
 float3 _MainLightColor;
+float3 _CameraPos;
+
+TextureCube _SkyboxTexture;
+SamplerState sampler_SkyboxTexture;
+float4x4 _SkyRotation;
 
 // SH variables are globally set by URP
 float4 unity_SHAr;
@@ -88,6 +93,7 @@ void FallbackTrace(uint3 id : SV_DispatchThreadID)
     float3 norm = w0 * v0.normal   + w1 * v1.normal   + w2 * v2.normal;
     float2 uv   = w0 * v0.uv       + w1 * v1.uv       + w2 * v2.uv;
 
+    float3 worldPos = mul(data.localToWorld, float4(pos, 1.0)).xyz;
     float3 worldNorm = normalize(mul(norm, (float3x3)data.worldToLocal));
 
     uv = uv * smData.uvTransform.xy + smData.uvTransform.zw;
@@ -96,8 +102,57 @@ void FallbackTrace(uint3 id : SV_DispatchThreadID)
     albedo *= smData.baseColor;
 
     float NdotL = max(0.0, dot(worldNorm, _MainLightDirection));
-    float3 light = _MainLightColor * NdotL + SampleSH(worldNorm);
-    float3 finalColor = light * albedo.rgb;
+    float3 radiance = _MainLightColor * NdotL;
+
+    // Energy conserved diffuse (assuming non-metal, F0 = 0.04)
+    float3 diffuseColor = albedo.rgb * 0.96;
+
+    // Specular (Simplified GGX)
+    float3 viewDir = normalize(_CameraPos - worldPos);
+    float3 halfDir = normalize(_MainLightDirection + viewDir);
+    float NdotH = max(0.0, dot(worldNorm, halfDir));
+    float LdotH = max(0.0, dot(_MainLightDirection, halfDir));
+
+    float roughness = 0.5; // Default smoothness = 0.5
+    float a2 = roughness * roughness * roughness * roughness;
+
+    // D (Distribution)
+    float d = NdotH * NdotH * (a2 - 1.0) + 1.0;
+    float D = a2 / (3.14159265 * d * d);
+
+    // F (Fresnel)
+    float Fc = pow(1.0 - LdotH, 5.0);
+    float3 F = lerp(float3(0.04, 0.04, 0.04), float3(1.0, 1.0, 1.0), Fc);
+
+    // V (Visibility - Kelemen approximation)
+    float V = 0.25 / (LdotH * LdotH + 0.00001);
+
+    float3 specularColor = D * V * F;
+
+    // Combine Direct Lighting
+    float3 directLight = radiance * (diffuseColor + specularColor);
+
+    // Ambient Lighting
+    float3 ambientLight = SampleSH(worldNorm) * albedo.rgb;
+
+    // Indirect Specular (Skybox Reflection)
+    float3 reflectDir = reflect(-viewDir, worldNorm);
+    reflectDir = mul((float3x3)_SkyRotation, reflectDir);
+
+    // Sample mip level based on roughness (roughness 0.5 -> mip 3 for a 6-mip cubemap)
+    float mipLevel = roughness * 6.0;
+    float3 indirectSpecular = _SkyboxTexture.SampleLevel(sampler_SkyboxTexture, reflectDir, mipLevel).rgb;
+
+    // Environment Fresnel (based on view angle, not light angle)
+    float NdotV = max(0.0001, dot(worldNorm, viewDir));
+    float Fc_env = pow(1.0 - NdotV, 5.0);
+    float3 F_env = lerp(float3(0.04, 0.04, 0.04), max(float3(0.04, 0.04, 0.04), 1.0 - roughness), Fc_env);
+
+    // Simple Environment BRDF (Surface reduction * Fresnel)
+    float surfaceReduction = 1.0 / (roughness * roughness + 1.0);
+    float3 envSpecular = indirectSpecular * F_env * surfaceReduction;
+
+    float3 finalColor = directLight + ambientLight + envSpecular;
 
     _RayTraceOutput[frag] = float4(finalColor, albedo.a);
 }
