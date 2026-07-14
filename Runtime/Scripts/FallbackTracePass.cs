@@ -31,7 +31,15 @@ namespace CallumNicholson.RaytraceGlassURP
 
             public Vector3 MainLightDirection;
             public Color MainLightColor;
-            public Color AmbientColor;
+            public Vector3 CameraPos;
+
+            public Vector4 SHAr;
+            public Vector4 SHAg;
+            public Vector4 SHAb;
+            public Vector4 SHBr;
+            public Vector4 SHBg;
+            public Vector4 SHBb;
+            public Vector4 SHC;
 
             public TextureHandle GlobalTextureArray;
             public ComputeBuffer GlobalInstanceDataBuffer;
@@ -86,7 +94,15 @@ namespace CallumNicholson.RaytraceGlassURP
                     passData.MainLightDirection = Vector3.up;
                     passData.MainLightColor = Color.black.linear;
                 }
-                passData.AmbientColor = RenderSettings.ambientSkyColor.linear;
+
+                SphericalHarmonicsL2 sh = RenderSettings.ambientProbe;
+                passData.SHAr = new Vector4(sh[0, 3], sh[0, 1], sh[0, 2], sh[0, 0] - sh[0, 6]);
+                passData.SHAg = new Vector4(sh[1, 3], sh[1, 1], sh[1, 2], sh[1, 0] - sh[1, 6]);
+                passData.SHAb = new Vector4(sh[2, 3], sh[2, 1], sh[2, 2], sh[2, 0] - sh[2, 6]);
+                passData.SHBr = new Vector4(sh[0, 4], sh[0, 5], sh[0, 6] * 3.0f, sh[0, 7]);
+                passData.SHBg = new Vector4(sh[1, 4], sh[1, 5], sh[1, 6] * 3.0f, sh[1, 7]);
+                passData.SHBb = new Vector4(sh[2, 4], sh[2, 5], sh[2, 6] * 3.0f, sh[2, 7]);
+                passData.SHC  = new Vector4(sh[0, 8], sh[1, 8], sh[2, 8], 1.0f);
 
                 passData.GlobalInstanceDataBuffer = RayTracingSceneManager.Instance.GlobalInstanceDataBuffer;
                 passData.GlobalSubmeshDataBuffer = RayTracingSceneManager.Instance.GlobalSubmeshDataBuffer;
@@ -109,7 +125,14 @@ namespace CallumNicholson.RaytraceGlassURP
 
                     context.cmd.SetComputeVectorParam(data.Compute, "_MainLightDirection", data.MainLightDirection);
                     context.cmd.SetComputeVectorParam(data.Compute, "_MainLightColor", data.MainLightColor);
-                    context.cmd.SetComputeVectorParam(data.Compute, "_AmbientColor", data.AmbientColor);
+
+                    context.cmd.SetComputeVectorParam(data.Compute, "unity_SHAr", data.SHAr);
+                    context.cmd.SetComputeVectorParam(data.Compute, "unity_SHAg", data.SHAg);
+                    context.cmd.SetComputeVectorParam(data.Compute, "unity_SHAb", data.SHAb);
+                    context.cmd.SetComputeVectorParam(data.Compute, "unity_SHBr", data.SHBr);
+                    context.cmd.SetComputeVectorParam(data.Compute, "unity_SHBg", data.SHBg);
+                    context.cmd.SetComputeVectorParam(data.Compute, "unity_SHBb", data.SHBb);
+                    context.cmd.SetComputeVectorParam(data.Compute, "unity_SHC", data.SHC);
 
                     context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_GlobalTextures", data.GlobalTextureArray);
                     context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_GlobalInstanceData", data.GlobalInstanceDataBuffer);

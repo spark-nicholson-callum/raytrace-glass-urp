@@ -12,7 +12,37 @@ SamplerState sampler_LinearRepeat;
 
 float3 _MainLightDirection;
 float3 _MainLightColor;
-float3 _AmbientColor;
+
+// SH variables are globally set by URP
+float4 unity_SHAr;
+float4 unity_SHAg;
+float4 unity_SHAb;
+float4 unity_SHBr;
+float4 unity_SHBg;
+float4 unity_SHBb;
+float4 unity_SHC;
+
+float3 SampleSH(float3 normalWS)
+{
+    // Linear + constant polynomial terms
+    float3 res = float3(
+        dot(unity_SHAr, float4(normalWS, 1.0)),
+        dot(unity_SHAg, float4(normalWS, 1.0)),
+        dot(unity_SHAb, float4(normalWS, 1.0))
+    );
+
+    // Quadratic polynomials
+    float4 vB = normalWS.xyzz * normalWS.yzzx;
+    res += float3(
+        dot(unity_SHBr, vB),
+        dot(unity_SHBg, vB),
+        dot(unity_SHBb, vB)
+    );
+    float vC = normalWS.x * normalWS.x - normalWS.y * normalWS.y;
+    res += unity_SHC.rgb * vC;
+
+    return max(0.0, res);
+}
 
 StructuredBuffer<MeshInstanceData> _GlobalInstanceData;
 StructuredBuffer<SubmeshData> _GlobalSubmeshData;
@@ -66,7 +96,7 @@ void FallbackTrace(uint3 id : SV_DispatchThreadID)
     albedo *= smData.baseColor;
 
     float NdotL = max(0.0, dot(worldNorm, _MainLightDirection));
-    float3 light = _MainLightColor * NdotL + _AmbientColor;
+    float3 light = _MainLightColor * NdotL + SampleSH(worldNorm);
     float3 finalColor = light * albedo.rgb;
 
     _RayTraceOutput[frag] = float4(finalColor, albedo.a);
