@@ -48,7 +48,7 @@ namespace CallumNicholson.RaytraceGlassURP
 
             // Create the texture based on the camera texture
             var normalDesc = cameraData.cameraTargetDescriptor;
-            normalDesc.colorFormat = RenderTextureFormat.ARGB32;
+            normalDesc.graphicsFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R8G8B8A8_UNorm;
             normalDesc.depthBufferBits = 0;
             var normalBufferHandle = UniversalRenderer.CreateRenderGraphTexture(renderGraph, normalDesc, "_LensNormalBuffer", false);
             lensData.NormalBufferHandle = normalBufferHandle;

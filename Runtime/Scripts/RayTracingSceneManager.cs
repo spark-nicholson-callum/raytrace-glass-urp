@@ -35,7 +35,7 @@ namespace CallumNicholson.RaytraceGlassURP
                                         | RayTracingAccelerationStructure.RayTracingModeMask.Static;
             Rtas = new RayTracingAccelerationStructure(settings);
 
-            GlobalTextureArray = new RenderTexture(TextureResolution, TextureResolution, 0, RenderTextureFormat.ARGB32)
+            GlobalTextureArray = new RenderTexture(TextureResolution, TextureResolution, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear)
             {
                 dimension = UnityEngine.Rendering.TextureDimension.Tex2DArray,
                 volumeDepth = MaxTextures,

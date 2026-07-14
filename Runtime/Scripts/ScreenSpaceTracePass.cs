@@ -112,7 +112,6 @@ namespace CallumNicholson.RaytraceGlassURP
 
             var texDesc = cameraData.cameraTargetDescriptor;
             texDesc.enableRandomWrite = true;
-            texDesc.colorFormat = RenderTextureFormat.ARGB32;
             texDesc.depthBufferBits = 0;
 
             TextureHandle outputTextureHandle = UniversalRenderer.CreateRenderGraphTexture(renderGraph, texDesc, "_RayTraceOutput", false);
