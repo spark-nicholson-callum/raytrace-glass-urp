@@ -244,6 +244,23 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1ae544c05c9d10c4a8c9217376e7de4f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: CallumNicholson.RaytraceGlassURP.Runtime::HybridLens
+--- !u!1 &597191874 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 8164078558771037576, guid: cb5c6ad5da516844592ac2297c75b182, type: 3}
+  m_PrefabInstance: {fileID: 1148165558}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &597191876
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 597191874}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1ae544c05c9d10c4a8c9217376e7de4f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: CallumNicholson.RaytraceGlassURP.Runtime::CallumNicholson.RaytraceGlassURP.HybridLens
 --- !u!1001 &1087500911
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -300,6 +317,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Fresnel
       objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 772db025294d9344b8c44556fef53b65, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -325,6 +346,70 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1ae544c05c9d10c4a8c9217376e7de4f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: CallumNicholson.RaytraceGlassURP.Runtime::CallumNicholson.RaytraceGlassURP.HybridLens
+--- !u!1001 &1148165558
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: cb5c6ad5da516844592ac2297c75b182, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 4.7
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: cb5c6ad5da516844592ac2297c75b182, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 2.16
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: cb5c6ad5da516844592ac2297c75b182, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: -4.49
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: cb5c6ad5da516844592ac2297c75b182, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.9262165
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: cb5c6ad5da516844592ac2297c75b182, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: cb5c6ad5da516844592ac2297c75b182, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.3769923
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: cb5c6ad5da516844592ac2297c75b182, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: cb5c6ad5da516844592ac2297c75b182, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: cb5c6ad5da516844592ac2297c75b182, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: -44.295
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: cb5c6ad5da516844592ac2297c75b182, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -7635826562936255635, guid: cb5c6ad5da516844592ac2297c75b182, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: f3c065ed8ac373448bfdfb79e0870e5f, type: 2}
+    - target: {fileID: 919132149155446097, guid: cb5c6ad5da516844592ac2297c75b182, type: 3}
+      propertyPath: m_Name
+      value: Fresnel2
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 8164078558771037576, guid: cb5c6ad5da516844592ac2297c75b182, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 597191876}
+  m_SourcePrefab: {fileID: 100100000, guid: cb5c6ad5da516844592ac2297c75b182, type: 3}
 --- !u!1001 &1265527391
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -709,4 +794,5 @@ SceneRoots:
   - {fileID: 160515503}
   - {fileID: 1701286760}
   - {fileID: 1087500911}
+  - {fileID: 1148165558}
   - {fileID: 1265527391}
