@@ -14,7 +14,8 @@ Texture2D<float4> _LensNormalBuffer;
 Texture2D<float> _LensDepthBuffer;
 Texture2D<float> _CameraDepthTexture;
 Texture2D<float4> _CameraOpaqueTexture;
-RWTexture2D<float4> _RayTraceOutput;
+RWTexture2D<float4> _RefractionOutputTexture;
+RWTexture2D<float4> _ReflectionOutputTexture;
 TextureCube<float4> _SkyboxTexture;
 
 SamplerState sampler_LinearClamp;
@@ -50,7 +51,8 @@ void NormalCompaction(uint3 id : SV_DispatchThreadID)
 [numthreads(8, 8, 1)]
 void ClearOutput(uint3 id : SV_DispatchThreadID)
 {
-    _RayTraceOutput[id.xy] = 0.0;
+    _RefractionOutputTexture[id.xy] = 0.0;
+    _ReflectionOutputTexture[id.xy] = 0.0;
 }
 
 [numthreads(1, 1, 1)]
@@ -175,7 +177,7 @@ void TraceLens(uint3 id : SV_DispatchThreadID)
     if (!isHit)
     {
         // Red for an error
-        _RayTraceOutput[frag] = float4(1.0, 0.0, 0.0, 1.0);
+        _RefractionOutputTexture[frag] = float4(1.0, 0.0, 0.0, 1.0);
     }
 
     // Cast once more for now
@@ -186,7 +188,7 @@ void TraceLens(uint3 id : SV_DispatchThreadID)
     {
         // The TIR case, just output debug magenta for now
         // I want to support reflections later
-        _RayTraceOutput[frag] = float4(1.0, 0.0, 1.0, 1.0);
+        _RefractionOutputTexture[frag] = float4(1.0, 0.0, 1.0, 1.0);
         return;
     }
     FallbackPayload fallbackPayload;
@@ -222,11 +224,11 @@ void TraceLens(uint3 id : SV_DispatchThreadID)
     if (isHit)
     {
         bool onSurface;
-        _RayTraceOutput[frag] = screenSampleWorldPos(samplePos, onSurface);
+        _RefractionOutputTexture[frag] = screenSampleWorldPos(samplePos, onSurface);
         if (!onSurface)
         {
             // Output debug cyan
-            _RayTraceOutput[frag] = float4(0.0, 1.0, 1.0, 1.0);
+            _RefractionOutputTexture[frag] = float4(0.0, 1.0, 1.0, 1.0);
             _OccludedRayBuffer.Append(fallbackPayload);
         }
     }
@@ -234,9 +236,9 @@ void TraceLens(uint3 id : SV_DispatchThreadID)
     {
         // Missed all geometry, sample the skybox
         float3 skyboxDir = mul((float3x3)_SkyRotation, dir);
-        _RayTraceOutput[frag] = _SkyboxTexture.SampleLevel(sampler_LinearClamp, skyboxDir, 0);
+        _RefractionOutputTexture[frag] = _SkyboxTexture.SampleLevel(sampler_LinearClamp, skyboxDir, 0);
     }
 #else
-    _RayTraceOutput[frag] = float4(_LensNormalBuffer[frag].xyz, 1.0);
+    _RefractionOutputTexture[frag] = float4(_LensNormalBuffer[frag].xyz, 1.0);
 #endif
 }

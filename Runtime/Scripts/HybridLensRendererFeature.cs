@@ -12,7 +12,8 @@ namespace CallumNicholson.RaytraceGlassURP
         {
             public TextureHandle NormalBufferHandle;
             public TextureHandle DepthBufferHandle;
-            public TextureHandle OutputTextureHandle;
+            public TextureHandle RefractionOutputTextureHandle;
+            public TextureHandle ReflectionOutputTextureHandle;
             public BufferHandle ActivePixelsBufferHandle;
             public BufferHandle OccludedRayBufferHandle;
 
@@ -20,7 +21,8 @@ namespace CallumNicholson.RaytraceGlassURP
             {
                 NormalBufferHandle = TextureHandle.nullHandle;
                 DepthBufferHandle = TextureHandle.nullHandle;
-                OutputTextureHandle = TextureHandle.nullHandle;
+                RefractionOutputTextureHandle = TextureHandle.nullHandle;
+                ReflectionOutputTextureHandle = TextureHandle.nullHandle;
                 ActivePixelsBufferHandle = BufferHandle.nullHandle;
                 OccludedRayBufferHandle = BufferHandle.nullHandle;
             }

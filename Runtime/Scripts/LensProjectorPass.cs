@@ -7,7 +7,8 @@ namespace CallumNicholson.RaytraceGlassURP
 {
     class LensProjectorPass : ScriptableRenderPass
     {
-        private static readonly int rayTraceOutputId = Shader.PropertyToID("_RayTraceOutput");
+        private static readonly int refractionOutputId = Shader.PropertyToID("_RefractionOutputTexture");
+        private static readonly int reflectionOutputId = Shader.PropertyToID("_ReflectionOutputTexture");
         private ShaderTagId shaderTagId = new ShaderTagId("HybridLens/Project");
         private FilteringSettings filteringSettings;
 
@@ -18,7 +19,8 @@ namespace CallumNicholson.RaytraceGlassURP
 
         private class PassData
         {
-            public TextureHandle OutputTexture;
+            public TextureHandle RefractionOutputTexture;
+            public TextureHandle ReflectionOutputTexture;
             public RendererListHandle RendererList;
         }
 
@@ -44,15 +46,19 @@ namespace CallumNicholson.RaytraceGlassURP
                 builder.UseRendererList(rendererListHandle);
                 passData.RendererList = rendererListHandle;
 
-                builder.UseTexture(lensData.OutputTextureHandle, AccessFlags.Read);
-                passData.OutputTexture = lensData.OutputTextureHandle;
+                builder.UseTexture(lensData.RefractionOutputTextureHandle, AccessFlags.Read);
+                passData.RefractionOutputTexture = lensData.RefractionOutputTextureHandle;
+
+                builder.UseTexture(lensData.ReflectionOutputTextureHandle, AccessFlags.Read);
+                passData.ReflectionOutputTexture = lensData.RefractionOutputTextureHandle;
 
                 builder.SetRenderAttachment(resourceData.activeColorTexture, 0, AccessFlags.Write);
                 builder.SetRenderAttachmentDepth(resourceData.activeDepthTexture, AccessFlags.Read);
 
                 builder.SetRenderFunc(static (PassData data, RasterGraphContext context) =>
                 {
-                    context.cmd.SetGlobalTexture(rayTraceOutputId, data.OutputTexture);
+                    context.cmd.SetGlobalTexture(refractionOutputId, data.RefractionOutputTexture);
+                    context.cmd.SetGlobalTexture(reflectionOutputId, data.ReflectionOutputTexture);
                     context.cmd.DrawRendererList(data.RendererList);
                 });
             }

@@ -78,7 +78,8 @@ namespace CallumNicholson.RaytraceGlassURP
             public TextureHandle DepthTexture;
             public TextureHandle CameraDepthTexture;
             public TextureHandle OpaqueTexture;
-            public TextureHandle OutputTexture;
+            public TextureHandle RefractionOutputTexture;
+            public TextureHandle ReflectionOutputTexture;
             public TextureHandle SkyboxTexture;
             public BufferHandle ActivePixelsBuffer;
             public BufferHandle ArgsBuffer;
@@ -114,9 +115,11 @@ namespace CallumNicholson.RaytraceGlassURP
             texDesc.enableRandomWrite = true;
             texDesc.depthBufferBits = 0;
 
-            TextureHandle outputTextureHandle = UniversalRenderer.CreateRenderGraphTexture(renderGraph, texDesc, "_RayTraceOutput", false);
+            TextureHandle refractionOutputTextureHandle = UniversalRenderer.CreateRenderGraphTexture(renderGraph, texDesc, "_RefractionOutputTexture", false);
+            TextureHandle reflectionOutputTextureHandle = UniversalRenderer.CreateRenderGraphTexture(renderGraph, texDesc, "_ReflectionOutputTexture", false);
 
-            lensData.OutputTextureHandle = outputTextureHandle;
+            lensData.RefractionOutputTextureHandle = refractionOutputTextureHandle;
+            lensData.ReflectionOutputTextureHandle = reflectionOutputTextureHandle;
 
             BufferDesc argsDesc = new BufferDesc(4, sizeof(uint))
             {
@@ -157,8 +160,11 @@ namespace CallumNicholson.RaytraceGlassURP
                 builder.UseTexture(resourceData.activeColorTexture, AccessFlags.Read);
                 passData.OpaqueTexture = resourceData.activeColorTexture;
 
-                builder.UseTexture(outputTextureHandle, AccessFlags.Write);
-                passData.OutputTexture = outputTextureHandle;
+                builder.UseTexture(refractionOutputTextureHandle, AccessFlags.Write);
+                passData.RefractionOutputTexture = refractionOutputTextureHandle;
+
+                builder.UseTexture(reflectionOutputTextureHandle, AccessFlags.Write);
+                passData.ReflectionOutputTexture = refractionOutputTextureHandle;
 
                 passData.SkyboxTexture = renderGraph.ImportTexture(skyboxHandle);
                 builder.UseTexture(passData.SkyboxTexture, AccessFlags.Read);
@@ -195,7 +201,8 @@ namespace CallumNicholson.RaytraceGlassURP
                     context.cmd.BuildRayTracingAccelerationStructure(data.Rtas);
 
                     // Clear the output texture
-                    context.cmd.SetComputeTextureParam(data.Compute, data.ClearKernel, "_RayTraceOutput", data.OutputTexture);
+                    context.cmd.SetComputeTextureParam(data.Compute, data.ClearKernel, "_RefractionOutputTexture", data.RefractionOutputTexture);
+                    context.cmd.SetComputeTextureParam(data.Compute, data.ClearKernel, "_ReflectionOutputTexture", data.ReflectionOutputTexture);
                     context.cmd.DispatchCompute(data.Compute, data.ClearKernel, data.ClearGroupsX, data.ClearGroupsY, 1);
 
                     // Generate the thread group sizes
@@ -211,7 +218,7 @@ namespace CallumNicholson.RaytraceGlassURP
                     context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_LensDepthBuffer", data.DepthTexture);
                     context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_CameraDepthTexture", data.CameraDepthTexture);
                     context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_CameraOpaqueTexture", data.OpaqueTexture);
-                    context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_RayTraceOutput", data.OutputTexture);
+                    context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_RefractionOutputTexture", data.RefractionOutputTexture);
                     context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_ActivePixelsBufferRead", data.ActivePixelsBuffer);
                     context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_IndirectArgsBuffer", data.ArgsBuffer);
 

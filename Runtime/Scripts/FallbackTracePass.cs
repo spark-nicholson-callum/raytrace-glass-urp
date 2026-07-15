@@ -39,7 +39,8 @@ namespace CallumNicholson.RaytraceGlassURP
             public int SetupKernel;
             public int TraceKernel;
 
-            public TextureHandle OutputTexture;
+            public TextureHandle RefractionOutputTexture;
+            public TextureHandle ReflectionOutputTexture;
             public BufferHandle ArgsBuffer;
             public BufferHandle OccludedRayBuffer;
 
@@ -96,8 +97,11 @@ namespace CallumNicholson.RaytraceGlassURP
                 passData.SetupKernel = setupKernel;
                 passData.TraceKernel = traceKernel;
 
-                builder.UseTexture(lensData.OutputTextureHandle, AccessFlags.Write);
-                passData.OutputTexture = lensData.OutputTextureHandle;
+                builder.UseTexture(lensData.RefractionOutputTextureHandle, AccessFlags.Write);
+                passData.RefractionOutputTexture = lensData.RefractionOutputTextureHandle;
+
+                builder.UseTexture(lensData.ReflectionOutputTextureHandle, AccessFlags.Write);
+                passData.ReflectionOutputTexture = lensData.ReflectionOutputTextureHandle;
 
                 passData.ArgsBuffer = builder.UseBuffer(argsHandle, AccessFlags.Write);
                 passData.OccludedRayBuffer = builder.UseBuffer(lensData.OccludedRayBufferHandle, AccessFlags.Read);
@@ -153,7 +157,8 @@ namespace CallumNicholson.RaytraceGlassURP
                     context.cmd.DispatchCompute(data.Compute, data.SetupKernel, 1, 1, 1);
 
                     // Call the fallback trace
-                    context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_RayTraceOutput", data.OutputTexture);
+                    context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_RefractionOutputTexture", data.RefractionOutputTexture);
+                    context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_ReflectionOutputTexture", data.ReflectionOutputTexture);
                     context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_IndirectArgsBuffer", data.ArgsBuffer);
                     context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_OccludedRayBuffer", data.OccludedRayBuffer);
 

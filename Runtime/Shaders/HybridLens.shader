@@ -81,8 +81,11 @@ Shader "Custom/HybridLens"
                 float4 screenPos : TEXCOORD0;
             };
 
-            TEXTURE2D(_RayTraceOutput);
-            SAMPLER(sampler_RayTraceOutput);
+            TEXTURE2D(_RefractionOutputTexture);
+            SAMPLER(sampler_RefractionOutputTexture);
+
+            TEXTURE2D(_ReflectionOutputTexture);
+            SAMPLER(sampler_ReflectionOutputTexture);
 
             Varyings vert(Attributes IN)
             {
@@ -97,7 +100,7 @@ Shader "Custom/HybridLens"
             float4 frag(Varyings IN) : SV_Target
             {
                 float2 screenUv = IN.screenPos.xy / IN.screenPos.w;
-                float4 rtColor = SAMPLE_TEXTURE2D(_RayTraceOutput, sampler_RayTraceOutput, screenUv);
+                float4 rtColor = SAMPLE_TEXTURE2D(_RefractionOutputTexture, sampler_RefractionOutputTexture, screenUv);
 
                 clip(rtColor.a - 0.01);
                 return rtColor;
