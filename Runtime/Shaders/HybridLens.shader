@@ -73,12 +73,15 @@ Shader "Custom/HybridLens"
             struct Attributes
             {
                 float4 vertex : POSITION;
+                float3 normal : NORMAL;
             };
 
             struct Varyings
             {
                 float4 pos : SV_POSITION;
                 float4 screenPos : TEXCOORD0;
+                float3 worldPos : TEXCOORD1;
+                float3 worldNorm : TEXCOORD2;
             };
 
             TEXTURE2D(_RefractionOutputTexture);
@@ -93,6 +96,8 @@ Shader "Custom/HybridLens"
 
                 OUT.pos = TransformObjectToHClip(IN.vertex.xyz);
                 OUT.screenPos = ComputeScreenPos(OUT.pos);
+                OUT.worldPos = TransformObjectToWorld(IN.vertex.xyz);
+                OUT.worldNorm = TransformObjectToWorldNormal(IN.normal);
 
                 return OUT;
             }
@@ -100,10 +105,23 @@ Shader "Custom/HybridLens"
             float4 frag(Varyings IN) : SV_Target
             {
                 float2 screenUv = IN.screenPos.xy / IN.screenPos.w;
-                float4 rtColor = SAMPLE_TEXTURE2D(_RefractionOutputTexture, sampler_RefractionOutputTexture, screenUv);
 
-                clip(rtColor.a - 0.01);
-                return rtColor;
+                float4 refractionColor = SAMPLE_TEXTURE2D(_RefractionOutputTexture, sampler_RefractionOutputTexture, screenUv);
+                float4 reflectionColor = SAMPLE_TEXTURE2D(_ReflectionOutputTexture, sampler_ReflectionOutputTexture, screenUv);
+
+                // Don't really need both, but it doesn't hurt
+                clip(refractionColor.a - 0.01);
+                clip(reflectionColor.a - 0.01);
+
+                float3 viewDir = GetWorldSpaceNormalizeViewDir(IN.worldPos);
+                float3 normal = normalize(IN.worldNorm);
+                float NdotV = saturate(dot(normal, viewDir));
+                float NdotVp = 1.0 - NdotV;
+                float fresnel = 0.04 + (1.0 - 0.04) * NdotVp * NdotVp * NdotVp * NdotVp * NdotVp;
+
+                float3 combinedColor = lerp(refractionColor, reflectionColor * 1.5, fresnel);
+
+                return float4(combinedColor, 1.0);
             }
 
             ENDHLSL

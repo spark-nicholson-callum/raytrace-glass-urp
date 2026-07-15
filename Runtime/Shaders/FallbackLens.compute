@@ -150,5 +150,14 @@ void FallbackTrace(uint3 id : SV_DispatchThreadID)
 
     float3 finalColor = directLight + ambientLight + envSpecular;
 
-    _RefractionOutputTexture[frag] = float4(finalColor, albedo.a);
+    switch (payload.type)
+    {
+        case 0: // Refraction
+            _RefractionOutputTexture[frag] = float4(finalColor, albedo.a);
+            break;
+
+        case 1: // Reflection
+            _ReflectionOutputTexture[frag] = float4(finalColor, albedo.a);
+            break;
+    }
 }

@@ -9,7 +9,9 @@ struct FallbackPayload
     uint primitive;         // 4
     float2 barycentrics;    // 8
 
-    float padding;          // 4
+    // 0 = refraction
+    // 1 = reflection
+    uint type;              // 4
     // = 32 = 16 * 2 Bytes
 };
 

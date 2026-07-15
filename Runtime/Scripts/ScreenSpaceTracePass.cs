@@ -164,7 +164,7 @@ namespace CallumNicholson.RaytraceGlassURP
                 passData.RefractionOutputTexture = refractionOutputTextureHandle;
 
                 builder.UseTexture(reflectionOutputTextureHandle, AccessFlags.Write);
-                passData.ReflectionOutputTexture = refractionOutputTextureHandle;
+                passData.ReflectionOutputTexture = reflectionOutputTextureHandle;
 
                 passData.SkyboxTexture = renderGraph.ImportTexture(skyboxHandle);
                 builder.UseTexture(passData.SkyboxTexture, AccessFlags.Read);
@@ -219,6 +219,7 @@ namespace CallumNicholson.RaytraceGlassURP
                     context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_CameraDepthTexture", data.CameraDepthTexture);
                     context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_CameraOpaqueTexture", data.OpaqueTexture);
                     context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_RefractionOutputTexture", data.RefractionOutputTexture);
+                    context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_ReflectionOutputTexture", data.ReflectionOutputTexture);
                     context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_ActivePixelsBufferRead", data.ActivePixelsBuffer);
                     context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_IndirectArgsBuffer", data.ArgsBuffer);
 

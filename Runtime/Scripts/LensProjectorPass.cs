@@ -50,7 +50,7 @@ namespace CallumNicholson.RaytraceGlassURP
                 passData.RefractionOutputTexture = lensData.RefractionOutputTextureHandle;
 
                 builder.UseTexture(lensData.ReflectionOutputTextureHandle, AccessFlags.Read);
-                passData.ReflectionOutputTexture = lensData.RefractionOutputTextureHandle;
+                passData.ReflectionOutputTexture = lensData.ReflectionOutputTextureHandle;
 
                 builder.SetRenderAttachment(resourceData.activeColorTexture, 0, AccessFlags.Write);
                 builder.SetRenderAttachmentDepth(resourceData.activeDepthTexture, AccessFlags.Read);

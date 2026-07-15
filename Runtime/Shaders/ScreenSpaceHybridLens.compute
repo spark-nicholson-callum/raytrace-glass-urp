@@ -108,32 +108,15 @@ float4 screenSampleWorldPos(float3 pos)
     return screenSampleWorldPos(pos, ignore);
 }
 
-[numthreads(64, 1, 1)]
-void TraceLens(uint3 id : SV_DispatchThreadID)
-{
-    uint activePixelCount = _IndirectArgsBuffer[3];
-    if (id.x >= activePixelCount) return;
-
-    uint2 frag = _ActivePixelsBufferRead[id.x];
-
 #if UNITY_DEVICE_SUPPORTS_INLINE_RAY_TRACING
-    float3 fragNorm = _LensNormalBuffer[frag].xyz * 2.0 - 1.0;
-    float rawDepth = _LensDepthBuffer[frag];
-
-    // Reconstruct world position
-    uint width, height;
-    _CameraDepthTexture.GetDimensions(width, height);
-    float2 uv = (float2(frag) + 0.5) / float2(width, height);
-    float3 fragPos = reconstructWorldPos(uv, rawDepth);
-    float3 viewDir = normalize(fragPos - _CameraPos);
-
-    bool isHit;
+void RefractionSample(uint2 frag, float3 fragPos, float3 fragNorm, float3 viewDir)
+{
     float3 dir, pos, norm;
-
-    // Cast inside glass to back
     norm = fragNorm;
     pos  = fragPos - norm * 0.01;
     dir  = refract(viewDir, norm, IOR_AIR / IOR_GLASS);
+
+    for (int i = 0; i < 4; ++i)
     {
         RayDesc ray;
         ray.Origin = pos;
@@ -144,9 +127,9 @@ void TraceLens(uint3 id : SV_DispatchThreadID)
         RayQuery<RAY_FLAG_NONE> q;
         q.TraceRayInline(_SceneRtas, RAY_FLAG_NONE, 0xff, ray);
         q.Proceed();
+
         if (q.CommittedStatus() == COMMITTED_TRIANGLE_HIT)
         {
-            isHit = true;
             pos = ray.Origin + ray.Direction * q.CommittedRayT();
 
             // Fetch the normal from the vertex buffer
@@ -171,26 +154,28 @@ void TraceLens(uint3 id : SV_DispatchThreadID)
         }
         else
         {
-            isHit = false;
+            // Red for an error
+            _RefractionOutputTexture[frag] = float4(1.0, 1.0, 1.0, 1.0);
+            return;
         }
-    }
-    if (!isHit)
-    {
-        // Red for an error
-        _RefractionOutputTexture[frag] = float4(1.0, 0.0, 0.0, 1.0);
-    }
 
-    // Cast once more for now
-    float3 samplePos;
-    pos = pos + norm * 0.01;
-    dir = refract(dir, -norm, IOR_GLASS / IOR_AIR);
-    if (all(dir == 0.0))
-    {
-        // The TIR case, just output debug magenta for now
-        // I want to support reflections later
+        float3 refractDir = refract(dir, -norm, IOR_GLASS / IOR_AIR);
+        if (any(refractDir != 0.0))
+        {
+            // Then we can exit here
+            pos = pos + norm * 0.01;
+            dir = refractDir;
+            break;
+        }
+
+        // We have TIR, run the loop again (or just output magenta)
         _RefractionOutputTexture[frag] = float4(1.0, 0.0, 1.0, 1.0);
-        return;
+        pos = pos - norm * 0.01;
+        dir = reflect(dir, -norm);
     }
+    // Cast once more for now
+    bool isHit;
+    float3 samplePos;
     FallbackPayload fallbackPayload;
     {
         RayDesc ray;
@@ -212,8 +197,7 @@ void TraceLens(uint3 id : SV_DispatchThreadID)
             fallbackPayload.submesh = q.CommittedGeometryIndex();
             fallbackPayload.primitive = q.CommittedPrimitiveIndex();
             fallbackPayload.barycentrics = q.CommittedTriangleBarycentrics();
-
-            fallbackPayload.padding = 0.0;
+            fallbackPayload.type = 0; // Refraction
         }
         else
         {
@@ -238,7 +222,74 @@ void TraceLens(uint3 id : SV_DispatchThreadID)
         float3 skyboxDir = mul((float3x3)_SkyRotation, dir);
         _RefractionOutputTexture[frag] = _SkyboxTexture.SampleLevel(sampler_LinearClamp, skyboxDir, 0);
     }
+}
+#endif
+
+#if UNITY_DEVICE_SUPPORTS_INLINE_RAY_TRACING
+void ReflectionSample(uint2 frag, float3 fragPos, float3 fragNorm, float3 viewDir)
+{
+    RayDesc ray;
+    ray.Origin = fragPos + fragNorm * 0.01;
+    ray.Direction = reflect(viewDir, fragNorm);
+    ray.TMin = 0.01;
+    ray.TMax = 100.0;
+
+    RayQuery<RAY_FLAG_NONE> q;
+    q.TraceRayInline(_SceneRtas, RAY_FLAG_NONE, 0xff, ray);
+    q.Proceed();
+    if (q.CommittedStatus() == COMMITTED_TRIANGLE_HIT)
+    {
+        float3 samplePos = ray.Origin + ray.Direction * q.CommittedRayT();
+
+        bool onSurface;
+        _ReflectionOutputTexture[frag] = screenSampleWorldPos(samplePos, onSurface);
+        if (!onSurface)
+        {
+            // Output debug cyan
+            _ReflectionOutputTexture[frag] = float4(0.0, 1.0, 1.0, 1.0);
+
+            FallbackPayload payload;
+            payload.frag = frag;
+            payload.instance = q.CommittedInstanceID();
+            payload.submesh = q.CommittedGeometryIndex();
+            payload.primitive = q.CommittedPrimitiveIndex();
+            payload.barycentrics = q.CommittedTriangleBarycentrics();
+            payload.type = 1; // Reflection
+            _OccludedRayBuffer.Append(payload);
+        }
+    }
+    else
+    {
+        // Skybox hit
+        float3 skyboxDir = mul((float3x3)_SkyRotation, ray.Direction);
+        _ReflectionOutputTexture[frag] = _SkyboxTexture.SampleLevel(sampler_LinearClamp, skyboxDir, 0);
+    }
+}
+#endif
+
+[numthreads(64, 1, 1)]
+void TraceLens(uint3 id : SV_DispatchThreadID)
+{
+    uint activePixelCount = _IndirectArgsBuffer[3];
+    if (id.x >= activePixelCount) return;
+
+    uint2 frag = _ActivePixelsBufferRead[id.x];
+
+#if UNITY_DEVICE_SUPPORTS_INLINE_RAY_TRACING
+    float3 fragNorm = _LensNormalBuffer[frag].xyz * 2.0 - 1.0;
+    float rawDepth = _LensDepthBuffer[frag];
+
+    // Reconstruct world position
+    uint width, height;
+    _CameraDepthTexture.GetDimensions(width, height);
+    float2 uv = (float2(frag) + 0.5) / float2(width, height);
+    float3 fragPos = reconstructWorldPos(uv, rawDepth);
+    float3 viewDir = normalize(fragPos - _CameraPos);
+
+    RefractionSample(frag, fragPos, fragNorm, viewDir);
+    ReflectionSample(frag, fragPos, fragNorm, viewDir);
 #else
-    _RefractionOutputTexture[frag] = float4(_LensNormalBuffer[frag].xyz, 1.0);
+    _RefractionOutputTexture[frag] = float4(1.0, 0.0, 1.0, 1.0);
+    _ReflectionOutputTexture[frag] = float4(0.0, 1.0, 1.0, 1.0);
 #endif
 }
