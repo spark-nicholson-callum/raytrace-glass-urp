@@ -31,8 +31,7 @@ struct SubmeshData
     int textureSlice;       // 4
     int indexOffset;        // 4
     int vertexOffset;       // 4
-
-    float padding;          // 4
+    int isGlass;            // 4
 
     float4 baseColor;       // 16
     float4 uvTransform;     // 16

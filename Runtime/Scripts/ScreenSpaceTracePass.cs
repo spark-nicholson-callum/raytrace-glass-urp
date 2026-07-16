@@ -14,10 +14,6 @@ namespace CallumNicholson.RaytraceGlassURP
         private int setupKernel;
         private int traceKernel;
 
-        private HybridLens currentLens;
-        private ComputeBuffer lensNormals;
-        private ComputeBuffer lensIndices;
-
         private RTHandle skyboxHandle;
 
         public ScreenSpaceTracePass(ComputeShader shader, Texture skybox)
@@ -33,35 +29,11 @@ namespace CallumNicholson.RaytraceGlassURP
             {
                 skyboxHandle = RTHandles.Alloc(skybox);
             }
-
-            UpdateLensData();
         }
 
         public void Dispose()
         {
             if (skyboxHandle != null) skyboxHandle.Release();
-            if (lensNormals != null) lensNormals.Release();
-            if (lensIndices != null) lensIndices.Release();
-        }
-
-        private void UpdateLensData()
-        {
-            currentLens = HybridLens.ActiveLens;
-
-            if (lensNormals != null) lensNormals.Release();
-            if (lensIndices != null) lensIndices.Release();
-
-            if (currentLens == null) return;
-
-            Mesh lensMesh = currentLens.LensMesh;
-            Vector3[] normals = lensMesh.normals;
-            int[]     indices = lensMesh.triangles;
-
-            lensNormals = new ComputeBuffer(normals.Length, 12);
-            lensNormals.SetData(normals);
-
-            lensIndices = new ComputeBuffer(indices.Length, 4);
-            lensIndices.SetData(indices);
         }
 
         private class PassData
@@ -74,12 +46,13 @@ namespace CallumNicholson.RaytraceGlassURP
             public int ClearGroupsX;
             public int ClearGroupsY;
 
+            public TextureHandle RefractionOutputTexture;
+            public TextureHandle ReflectionOutputTexture;
+
             public TextureHandle NormalTexture;
             public TextureHandle DepthTexture;
             public TextureHandle CameraDepthTexture;
             public TextureHandle OpaqueTexture;
-            public TextureHandle RefractionOutputTexture;
-            public TextureHandle ReflectionOutputTexture;
             public TextureHandle SkyboxTexture;
             public BufferHandle ActivePixelsBuffer;
             public BufferHandle ArgsBuffer;
@@ -90,17 +63,16 @@ namespace CallumNicholson.RaytraceGlassURP
             public Vector3 CameraPos;
             public Matrix4x4 SkyRotation;
 
-            public ComputeBuffer LensNormalsBuffer;
-            public ComputeBuffer LensIndicesBuffer;
-            public Matrix4x4 LensInverseLocalToWorld;
-
             public BufferHandle OccludedRayBuffer;
+
+            public ComputeBuffer GlobalInstanceDataBuffer;
+            public ComputeBuffer GlobalSubmeshDataBuffer;
+            public ComputeBuffer GlobalIndexBuffer;
+            public ComputeBuffer GlobalVertexBuffer;
         }
 
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
         {
-            if (HybridLens.ActiveLens != currentLens) UpdateLensData();
-
             // TODO // There is no real reason to call this every frame (it is easier though)
             RayTracingSceneManager.Instance.RebuildSceneData();
 
@@ -189,12 +161,12 @@ namespace CallumNicholson.RaytraceGlassURP
 
                 passData.SkyRotation = Matrix4x4.Rotate(Quaternion.Euler(0, skyRotation, 0));
 
-                // Mesh Data
-                passData.LensNormalsBuffer = lensNormals;
-                passData.LensIndicesBuffer = lensIndices;
-                passData.LensInverseLocalToWorld = currentLens.LensTransform.worldToLocalMatrix;
-
                 passData.OccludedRayBuffer = builder.UseBuffer(occludedRayBufferHandle, AccessFlags.Write);
+
+                passData.GlobalInstanceDataBuffer = RayTracingSceneManager.Instance.GlobalInstanceDataBuffer;
+                passData.GlobalSubmeshDataBuffer = RayTracingSceneManager.Instance.GlobalSubmeshDataBuffer;
+                passData.GlobalIndexBuffer = RayTracingSceneManager.Instance.GlobalIndexBuffer;
+                passData.GlobalVertexBuffer = RayTracingSceneManager.Instance.GlobalVertexBuffer;
 
                 builder.SetRenderFunc(static (PassData data, ComputeGraphContext context) =>
                 {
@@ -231,11 +203,12 @@ namespace CallumNicholson.RaytraceGlassURP
                     context.cmd.SetComputeVectorParam(data.Compute, "_CameraPos", data.CameraPos);
                     context.cmd.SetComputeMatrixParam(data.Compute, "_SkyRotation", data.SkyRotation);
 
-                    context.cmd.SetComputeMatrixParam(data.Compute, "_LensInverseLocalToWorld", data.LensInverseLocalToWorld);
-                    context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_LensNormals", data.LensNormalsBuffer);
-                    context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_LensIndices", data.LensIndicesBuffer);
-
                     context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_OccludedRayBuffer", data.OccludedRayBuffer);
+
+                    context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_GlobalInstanceData", data.GlobalInstanceDataBuffer);
+                    context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_GlobalSubmeshData", data.GlobalSubmeshDataBuffer);
+                    context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_GlobalIndices", data.GlobalIndexBuffer);
+                    context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_GlobalVertices", data.GlobalVertexBuffer);
 
                     context.cmd.DispatchCompute(data.Compute, data.TraceKernel, data.ArgsBuffer, 0);
                 });

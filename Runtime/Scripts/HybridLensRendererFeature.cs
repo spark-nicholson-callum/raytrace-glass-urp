@@ -71,7 +71,6 @@ namespace CallumNicholson.RaytraceGlassURP
         {
             if (lensComputeShader == null) return;
             if (fallbackComputeShader == null) return;
-            if (HybridLens.ActiveLens == null) return;
             if (RayTracingSceneManager.Instance == null) return;
             if (!SystemInfo.supportsRayTracing)
             {

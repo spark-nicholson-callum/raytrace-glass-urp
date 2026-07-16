@@ -19,9 +19,7 @@ namespace CallumNicholson.RaytraceGlassURP
         public int textureSlice;
         public int indexOffset;
         public int vertexOffset;
-
-        public float padding;
-
+        public int isGlass;
         public Vector4 baseColor;
         public Vector4 uvTransform;
     }

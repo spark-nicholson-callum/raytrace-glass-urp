@@ -103,12 +103,14 @@ namespace CallumNicholson.RaytraceGlassURP
                     if      (material.HasProperty("_BaseColor")) baseColor = material.GetColor("_BaseColor");
                     else if (material.HasProperty("_Color"))     baseColor = material.GetColor("_Color");
 
+                    bool isGlass = (material.shader.name == "Custom/HybridLens");
+
                     submeshData.Add(new SubmeshData
                     {
                         textureSlice = GetTextureSlice(texture),
                         indexOffset = indexData.Count,
                         vertexOffset = vertexData.Count,
-                        padding = 0f,
+                        isGlass = (isGlass) ? 1 : 0,
                         baseColor = baseColor.linear,
                         uvTransform = uvTransform,
                     });
@@ -119,8 +121,8 @@ namespace CallumNicholson.RaytraceGlassURP
                 }
 
                 vertexData.AddRange(mesh.vertices
-                    .Zip(mesh.normals, (vert, norm) => new {vert, norm})
-                    .Zip(mesh.uv, (data, uv) => new MeshVertexData
+                    .ZipLong(mesh.normals, (vert, norm) => new {vert, norm})
+                    .ZipLong(mesh.uv, (data, uv) => new MeshVertexData
                     {
                         position = data.vert,
                         normal = data.norm,
