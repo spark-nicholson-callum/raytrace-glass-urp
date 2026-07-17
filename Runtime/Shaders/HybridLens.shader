@@ -6,6 +6,45 @@ Shader "Custom/HybridLens"
 
         Pass
         {
+            Name "GlassDepthPrepass"
+            Tags {"LightMode" = "HybridLens/DepthPrepass"}
+
+            ColorMask 0
+            ZWrite On
+            ZTest LEqual
+
+            HLSLPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+
+            struct Attributes
+            {
+                float4 position : POSITION;
+            };
+
+            struct Varyings
+            {
+                float4 pos : SV_POSITION;
+            };
+
+            Varyings vert(Attributes IN)
+            {
+                Varyings OUT;
+                OUT.pos = TransformObjectToHClip(IN.position.xyz);
+                return OUT;
+            }
+
+            half4 frag(Varyings IN) : SV_TARGET
+            {
+                // We only care about depth, colour o
+                return 0;
+            }
+            ENDHLSL
+        }
+
+        Pass
+        {
             Name "LensGather"
             Tags { "LightMode" = "HybridLens/Gather" }
             ZWrite Off
@@ -25,36 +64,41 @@ Shader "Custom/HybridLens"
             struct Varyings
             {
                 float4 pos : SV_POSITION;
-                float3 worldNormal : TEXCOORD0;
+                float4 screenPos : TEXCOORD0;
+                float3 worldNormal : TEXCOORD1;
             };
 
-            struct FragOutput
-            {
-                float4 normal : SV_Target0;
-                float4 depth  : SV_Target1;
-            };
+            TEXTURE2D_ARRAY(_LensDepthBuffer);
 
             Varyings vert(Attributes IN)
             {
                 Varyings OUT;
 
                 OUT.pos = TransformObjectToHClip(IN.vertex.xyz);
+                OUT.screenPos = ComputeScreenPos(OUT.pos);
                 OUT.worldNormal = TransformObjectToWorldNormal(IN.normal);
 
                 return OUT;
             }
 
-            FragOutput frag(Varyings IN)
+            float4 frag(Varyings IN) : SV_Target0
             {
-                FragOutput OUT;
+                float2 screenUv = IN.screenPos.xy / IN.screenPos.w;
+                float currentDepth = IN.pos.z;
+                float closestGlass = SAMPLE_TEXTURE2D_ARRAY(_LensDepthBuffer, sampler_PointClamp, screenUv, 0).r;
+
+                currentDepth = LinearEyeDepth(currentDepth, _ZBufferParams);
+                closestGlass = LinearEyeDepth(closestGlass, _ZBufferParams);
+
+                if (currentDepth > closestGlass + 0.01)
+                {
+                    discard;
+                }
 
                 float3 normal = normalize(IN.worldNormal);
                 float3 colorNormal = normal * 0.5 + 0.5;
 
-                OUT.normal = float4(colorNormal, 1.0);
-                OUT.depth  = IN.pos.z;
-
-                return OUT;
+                return float4(colorNormal, 1.0);
             }
 
             ENDHLSL
@@ -84,6 +128,8 @@ Shader "Custom/HybridLens"
                 float3 worldNorm : TEXCOORD2;
             };
 
+            TEXTURE2D_ARRAY(_LensDepthBuffer);
+
             TEXTURE2D(_RefractionOutputTexture);
             SAMPLER(sampler_RefractionOutputTexture);
 
@@ -105,6 +151,17 @@ Shader "Custom/HybridLens"
             float4 frag(Varyings IN) : SV_Target
             {
                 float2 screenUv = IN.screenPos.xy / IN.screenPos.w;
+
+                float currentDepth = IN.pos.z;
+                float closestGlass = SAMPLE_TEXTURE2D_ARRAY(_LensDepthBuffer, sampler_PointClamp, screenUv, 0).r;
+
+                currentDepth = LinearEyeDepth(currentDepth, _ZBufferParams);
+                closestGlass = LinearEyeDepth(closestGlass, _ZBufferParams);
+
+                if (currentDepth > closestGlass + 0.01)
+                {
+                    discard;
+                }
 
                 float4 refractionColor = SAMPLE_TEXTURE2D(_RefractionOutputTexture, sampler_RefractionOutputTexture, screenUv);
                 float4 reflectionColor = SAMPLE_TEXTURE2D(_ReflectionOutputTexture, sampler_ReflectionOutputTexture, screenUv);

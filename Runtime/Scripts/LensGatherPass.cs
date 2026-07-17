@@ -11,7 +11,9 @@ namespace CallumNicholson.RaytraceGlassURP
         private ComputeShader lensCompute;
         private int compactionKernel;
 
+        private ShaderTagId prepassShaderTagId = new ShaderTagId("HybridLens/DepthPrepass");
         private ShaderTagId shaderTagId = new ShaderTagId("HybridLens/Gather");
+        private int depthTexId = Shader.PropertyToID("_LensDepthBuffer");
         private FilteringSettings filteringSettings;
 
         public LensGatherPass(ComputeShader shader)
@@ -54,11 +56,21 @@ namespace CallumNicholson.RaytraceGlassURP
             lensData.NormalBufferHandle = normalBufferHandle;
 
             // Create the depth texture based on the camera texture
-            var depthDesc = cameraData.cameraTargetDescriptor;
-            depthDesc.colorFormat = RenderTextureFormat.RFloat;
-            depthDesc.depthBufferBits = 0;
-            var depthBufferHandle = UniversalRenderer.CreateRenderGraphTexture(renderGraph, depthDesc, "_LensDepthBuffer", false);
+            var depthDesc = new TextureDesc(Vector2.one, true, true)
+            {
+                colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.None,
+                depthBufferBits = DepthBits.Depth32,
+                name = "GlassCustomDepth"
+            };
+            var depthBufferHandle = renderGraph.CreateTexture(depthDesc);
             lensData.DepthBufferHandle = depthBufferHandle;
+
+            // Build the prepass renderer list
+            var prepassSortingCriteria = cameraData.defaultOpaqueSortFlags;
+            var prepassDrawingSettings = CreateDrawingSettings(prepassShaderTagId, renderingData, cameraData, lightData, prepassSortingCriteria);
+
+            var prepassListParams = new RendererListParams(renderingData.cullResults, prepassDrawingSettings, filteringSettings);
+            var prepassRendererListHandle = renderGraph.CreateRendererList(prepassListParams);
 
             // Build the renderer list
             var sortingCriteria = cameraData.defaultOpaqueSortFlags;
@@ -76,14 +88,27 @@ namespace CallumNicholson.RaytraceGlassURP
             var activePixelsHandle = renderGraph.CreateBuffer(bufferDesc);
             lensData.ActivePixelsBufferHandle = activePixelsHandle;
 
+            using (var builder = renderGraph.AddRasterRenderPass<PassData>("Lens Depth Prepass", out var passData))
+            {
+                passData.RendererList = prepassRendererListHandle;
+                builder.UseRendererList(prepassRendererListHandle);
+                builder.SetRenderAttachmentDepth(depthBufferHandle, AccessFlags.Write);
+
+                builder.SetGlobalTextureAfterPass(depthBufferHandle, depthTexId);
+                builder.SetRenderFunc(static (PassData data, RasterGraphContext context) =>
+                {
+                    context.cmd.DrawRendererList(data.RendererList);
+                });
+            }
             using (var builder = renderGraph.AddRasterRenderPass<PassData>("Lens Gatherer Pass", out var passData))
             {
                 passData.RendererList = rendererListHandle;
 
                 builder.UseRendererList(rendererListHandle);
                 builder.SetRenderAttachment(normalBufferHandle, 0, AccessFlags.Write);
-                builder.SetRenderAttachment(depthBufferHandle, 1, AccessFlags.Write);
                 builder.SetRenderAttachmentDepth(resourceData.activeDepthTexture, AccessFlags.Write);
+
+                builder.UseGlobalTexture(depthTexId, AccessFlags.Read);
 
                 builder.SetRenderFunc(static (PassData data, RasterGraphContext context) =>
                 {

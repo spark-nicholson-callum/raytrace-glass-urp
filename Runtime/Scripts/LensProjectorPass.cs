@@ -55,6 +55,8 @@ namespace CallumNicholson.RaytraceGlassURP
                 builder.SetRenderAttachment(resourceData.activeColorTexture, 0, AccessFlags.Write);
                 builder.SetRenderAttachmentDepth(resourceData.activeDepthTexture, AccessFlags.Read);
 
+                builder.UseGlobalTexture(Shader.PropertyToID("_LensDepthBuffer"), AccessFlags.Read);
+
                 builder.SetRenderFunc(static (PassData data, RasterGraphContext context) =>
                 {
                     context.cmd.SetGlobalTexture(refractionOutputId, data.RefractionOutputTexture);
