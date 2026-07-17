@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: Custom_HybridLens
+  m_Name: Custom_HybridLens_Diamond
   m_Shader: {fileID: 4800000, guid: f1d770852cb9ed842bcde7e3e24c0eaa, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
@@ -24,7 +24,8 @@ Material:
     serializedVersion: 3
     m_TexEnvs: []
     m_Ints: []
-    m_Floats: []
+    m_Floats:
+    - _IndexOfRefraction: 2.42
     m_Colors: []
   m_BuildTextureStacks: []
   m_AllowLocking: 1

@@ -1,5 +1,10 @@
 Shader "Custom/HybridLens"
 {
+    Properties
+    {
+        _IndexOfRefraction ("Index of Refraction", Float) = 1.5
+    }
+
     SubShader
     {
         Tags { "RenderType"="Opaque" "RenderPipeline"="UniversalPipeline" }

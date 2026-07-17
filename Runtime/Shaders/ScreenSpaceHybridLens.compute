@@ -150,19 +150,19 @@ float4 GlassTrace(uint2 frag, float3 rayPos, float3 rayDir, int payloadType)
             pos  = mul(data.localToWorld, float4(pos, 1.0)).xyz;
             norm = normalize(mul(norm, (float3x3)data.worldToLocal));
 
-            if (smData.isGlass)
+            if (smData.indexOfRefraction != 0.0)
             {
                 // Generate new ray
-                bool IsEnter = dot(rayDir, norm) < 0.0;
-                if (IsEnter)
+                bool isEnter = dot(rayDir, norm) < 0.0;
+                if (isEnter)
                 {
                     rayPos = pos - norm * 0.001;
-                    rayDir = refract(rayDir, norm, IOR_AIR / IOR_GLASS);
+                    rayDir = refract(rayDir, norm, IOR_AIR / smData.indexOfRefraction);
                     continue;
                 }
 
                 // Need to decided between refraction and TIR
-                float3 refractDir = refract(rayDir, -norm, IOR_GLASS / IOR_AIR);
+                float3 refractDir = refract(rayDir, -norm, smData.indexOfRefraction / IOR_AIR);
                 if (any(refractDir != 0.0))
                 {
                     // Refraction case
