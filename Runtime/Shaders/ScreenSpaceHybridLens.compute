@@ -10,6 +10,8 @@
 #define IOR_AIR 1.0
 #define IOR_GLASS 1.5
 
+#define MAX_RAYS 32
+
 RWTexture2D<float4> _RefractionOutputTexture;
 RWTexture2D<float4> _ReflectionOutputTexture;
 
@@ -39,6 +41,8 @@ StructuredBuffer<MeshInstanceData> _GlobalInstanceData;
 StructuredBuffer<SubmeshData> _GlobalSubmeshData;
 StructuredBuffer<int> _GlobalIndices;
 StructuredBuffer<MeshVertexData> _GlobalVertices;
+
+int _DynamicMaxRays;
 
 [numthreads(8, 8, 1)]
 void NormalCompaction(uint3 id : SV_DispatchThreadID)
@@ -107,10 +111,12 @@ float4 screenSampleWorldPos(float3 pos, out bool onSurface)
 #if UNITY_DEVICE_SUPPORTS_INLINE_RAY_TRACING
 float4 GlassTrace(uint2 frag, float3 rayPos, float3 rayDir, int payloadType)
 {
-    const int MAX_RAYS = 16;
-
+    int dynamicMaxRays = max(1, _DynamicMaxRays);
+    [unroll]
     for (int i = 0; i < MAX_RAYS; ++i)
     {
+        if (i >= dynamicMaxRays) break;
+
         RayDesc ray;
         ray.Origin = rayPos;
         ray.Direction = rayDir;

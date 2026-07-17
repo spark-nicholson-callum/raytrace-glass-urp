@@ -10,6 +10,7 @@
     },
     "dependencies":
     {
-      "com.callumnicholson.urp-portfolio-common": "1.0.0"
+      "com.callumnicholson.urp-portfolio-common": "1.0.0",
+      "com.unity.ugui": "2.0.0"
     }
 }
