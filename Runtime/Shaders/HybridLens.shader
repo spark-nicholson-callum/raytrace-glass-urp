@@ -74,7 +74,18 @@ Shader "Custom/HybridLens"
                 float3 worldNormal : TEXCOORD1;
             };
 
+            struct Output
+            {
+                float4 normalTexture : SV_Target0;
+                float4 materialTexture: SV_Target1;
+            };
+
             TEXTURE2D_ARRAY(_LensDepthBuffer);
+
+            CBUFFER_START(UnityPerMaterial)
+                float _BaseIor;
+                float _Dispersion;
+            CBUFFER_END
 
             Varyings vert(Attributes IN)
             {
@@ -87,8 +98,10 @@ Shader "Custom/HybridLens"
                 return OUT;
             }
 
-            float4 frag(Varyings IN) : SV_Target0
+            Output frag(Varyings IN)
             {
+                Output OUT;
+
                 float2 screenUv = IN.screenPos.xy / IN.screenPos.w;
                 float currentDepth = IN.pos.z;
                 float closestGlass = SAMPLE_TEXTURE2D_ARRAY(_LensDepthBuffer, sampler_PointClamp, screenUv, 0).r;
@@ -104,7 +117,10 @@ Shader "Custom/HybridLens"
                 float3 normal = normalize(IN.worldNormal);
                 float3 colorNormal = normal * 0.5 + 0.5;
 
-                return float4(colorNormal, 1.0);
+                OUT.normalTexture = float4(colorNormal, 1.0);
+                OUT.materialTexture = float4(_BaseIor, _Dispersion, 0.0, 1.0);
+
+                return OUT;
             }
 
             ENDHLSL
@@ -176,6 +192,7 @@ Shader "Custom/HybridLens"
                 clip(refractionColor.a - 0.01);
                 clip(reflectionColor.a - 0.01);
 
+                // TODO // Technically relys on index of refraction, but it's fine for now
                 float3 viewDir = GetWorldSpaceNormalizeViewDir(IN.worldPos);
                 float3 normal = normalize(IN.worldNorm);
                 float NdotV = saturate(dot(normal, viewDir));

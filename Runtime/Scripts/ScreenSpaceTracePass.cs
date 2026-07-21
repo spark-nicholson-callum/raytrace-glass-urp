@@ -51,6 +51,8 @@ namespace CallumNicholson.RaytraceGlassURP
 
             public TextureHandle NormalTexture;
             public TextureHandle DepthTexture;
+            public TextureHandle MaterialTexture;
+
             public TextureHandle CameraDepthTexture;
             public TextureHandle OpaqueTexture;
             public TextureHandle SkyboxTexture;
@@ -123,6 +125,9 @@ namespace CallumNicholson.RaytraceGlassURP
                 builder.UseTexture(lensData.NormalBufferHandle, AccessFlags.Read);
                 passData.NormalTexture = lensData.NormalBufferHandle;
 
+                builder.UseTexture(lensData.MaterialBufferHandle, AccessFlags.Read);
+                passData.MaterialTexture = lensData.MaterialBufferHandle;
+
                 builder.UseTexture(lensData.DepthBufferHandle, AccessFlags.Read);
                 passData.DepthTexture = lensData.DepthBufferHandle;
 
@@ -187,6 +192,7 @@ namespace CallumNicholson.RaytraceGlassURP
                     context.cmd.SetBufferCounterValue(data.OccludedRayBuffer, 0);
 
                     context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_LensNormalBuffer", data.NormalTexture);
+                    context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_LensMaterialBuffer", data.MaterialTexture);
                     context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_LensDepthBuffer", data.DepthTexture);
                     context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_CameraDepthTexture", data.CameraDepthTexture);
                     context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_CameraOpaqueTexture", data.OpaqueTexture);

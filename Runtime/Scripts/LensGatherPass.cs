@@ -55,6 +55,12 @@ namespace CallumNicholson.RaytraceGlassURP
             var normalBufferHandle = UniversalRenderer.CreateRenderGraphTexture(renderGraph, normalDesc, "_LensNormalBuffer", false);
             lensData.NormalBufferHandle = normalBufferHandle;
 
+            var materialDesc = cameraData.cameraTargetDescriptor;
+            materialDesc.graphicsFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R32G32B32A32_SFloat;
+            materialDesc.depthBufferBits = 0;
+            var materialBufferHandle = UniversalRenderer.CreateRenderGraphTexture(renderGraph, materialDesc, "_LensMaterialBuffer", false);
+            lensData.MaterialBufferHandle = materialBufferHandle;
+
             // Create the depth texture based on the camera texture
             var depthDesc = new TextureDesc(Vector2.one, true, true)
             {
@@ -106,6 +112,7 @@ namespace CallumNicholson.RaytraceGlassURP
 
                 builder.UseRendererList(rendererListHandle);
                 builder.SetRenderAttachment(normalBufferHandle, 0, AccessFlags.Write);
+                builder.SetRenderAttachment(materialBufferHandle, 1, AccessFlags.Write);
                 builder.SetRenderAttachmentDepth(resourceData.activeDepthTexture, AccessFlags.Write);
 
                 builder.UseGlobalTexture(depthTexId, AccessFlags.Read);

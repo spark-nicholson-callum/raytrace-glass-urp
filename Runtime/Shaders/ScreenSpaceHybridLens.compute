@@ -25,6 +25,8 @@ RWTexture2D<float4> _ReflectionOutputTexture;
 
 Texture2D<float4> _LensNormalBuffer;
 Texture2DArray<float> _LensDepthBuffer;
+Texture2D<float4> _LensMaterialBuffer;
+
 Texture2D<float> _CameraDepthTexture;
 Texture2D<float4> _CameraOpaqueTexture;
 TextureCube<float4> _SkyboxTexture;
@@ -243,13 +245,13 @@ float4 GlassTrace(uint2 frag, float3 rayPos, float3 rayDir, float invSqrWaveleng
 void RefractionSample(uint2 frag, float3 fragPos, float3 fragNorm, float3 viewDir)
 {
     float3 rayPos = fragPos - fragNorm * 0.001;
-    // TODO // Aaaah fuck, what am I supposed to do here?
-            // I guess I need to store IoR as part of the compaction data
-    float3 rayDir = refract(viewDir, fragNorm, IOR_AIR / IOR_GLASS);
 
-    float invSqrWavelength = 1.0;
-    float3 colorFilter = float3(1.0, 1.0, 1.0);
-    //float rng = random(uint3(frag, _FrameSeed));
+    float2 materialProps = _LensMaterialBuffer[frag];
+    float baseIor = materialProps.x;
+    float dispersion = materialProps.y;
+
+    float invSqrWavelength;
+    float3 colorFilter;
     float rng = InterleavedGradientNoise(frag, _FrameSeed);
     if (rng < PROBABILITY_R)
     {
@@ -266,6 +268,8 @@ void RefractionSample(uint2 frag, float3 fragPos, float3 fragNorm, float3 viewDi
         invSqrWavelength = INV_SQR_WAVELENGTH_B;
         colorFilter = float3(0.0, 0.0, 1.0/PROBABILITY_B);
     }
+    float ior = baseIor + dispersion * invSqrWavelength;
+    float3 rayDir = refract(viewDir, fragNorm, IOR_AIR / ior);
 
     _RefractionOutputTexture[frag] = GlassTrace(frag, rayPos, rayDir, invSqrWavelength, colorFilter, 0);
 }
@@ -277,9 +281,9 @@ void ReflectionSample(uint2 frag, float3 fragPos, float3 fragNorm, float3 viewDi
     float3 rayPos = fragPos + fragNorm * 0.001;
     float3 rayDir = reflect(viewDir, fragNorm);
 
-    float invSqrWavelength = 1.0;
-    float3 colorFilter = float3(1.0, 1.0, 1.0);
-    float rng = random(uint3(frag, _FrameSeed));
+    float invSqrWavelength;
+    float3 colorFilter;
+    float rng = InterleavedGradientNoise(frag, _FrameSeed);
     if (rng < PROBABILITY_R)
     {
         invSqrWavelength = INV_SQR_WAVELENGTH_R;
