@@ -2,7 +2,8 @@ Shader "Custom/HybridLens"
 {
     Properties
     {
-        _IndexOfRefraction ("Index of Refraction", Float) = 1.5
+        _BaseIor ("Base Index of Refraction", Float) = 1.511
+        _Dispersion ("Dispersion", Float) = 0.00425
     }
 
     SubShader

@@ -10,6 +10,14 @@
 #define IOR_AIR 1.0
 #define IOR_GLASS 1.5
 
+#define INV_SQR_WAVELENGTH_R (1.0 / 0.650 / 0.650)
+#define INV_SQR_WAVELENGTH_G (1.0 / 0.532 / 0.532)
+#define INV_SQR_WAVELENGTH_B (1.0 / 0.473 / 0.473)
+
+#define PROBABILITY_R (0.25)
+#define PROBABILITY_G (0.50)
+#define PROBABILITY_B (0.25)
+
 #define MAX_RAYS 32
 
 RWTexture2D<float4> _RefractionOutputTexture;
@@ -35,6 +43,8 @@ RaytracingAccelerationStructure _SceneRtas;
 float3 _CameraPos;
 float4x4 _SkyRotation;
 
+int _FrameSeed;
+
 AppendStructuredBuffer<FallbackPayload> _OccludedRayBuffer;
 
 StructuredBuffer<MeshInstanceData> _GlobalInstanceData;
@@ -43,6 +53,23 @@ StructuredBuffer<int> _GlobalIndices;
 StructuredBuffer<MeshVertexData> _GlobalVertices;
 
 int _DynamicMaxRays;
+
+float random(uint3 v)
+{
+    v = v * 1664525u + 1013904223u;
+
+    v.x += v.y * v.z;
+    v.y += v.z * v.x;
+    v.z += v.x * v.y;
+
+    v ^= v >> 16u;
+
+    v.x += v.y * v.z;
+    v.y += v.z * v.x;
+    v.z += v.x * v.y;
+
+    return v.x / 4294967295.0;
+}
 
 [numthreads(8, 8, 1)]
 void NormalCompaction(uint3 id : SV_DispatchThreadID)
@@ -109,8 +136,9 @@ float4 screenSampleWorldPos(float3 pos, out bool onSurface)
 }
 
 #if UNITY_DEVICE_SUPPORTS_INLINE_RAY_TRACING
-float4 GlassTrace(uint2 frag, float3 rayPos, float3 rayDir, int payloadType)
+float4 GlassTrace(uint2 frag, float3 rayPos, float3 rayDir, float invSqrWavelength, float3 colorFilter, int payloadType)
 {
+    float4 colorFilter4 = float4(colorFilter, 1.0);
     int dynamicMaxRays = max(1, _DynamicMaxRays);
     [unroll]
     for (int i = 0; i < MAX_RAYS; ++i)
@@ -156,19 +184,20 @@ float4 GlassTrace(uint2 frag, float3 rayPos, float3 rayDir, int payloadType)
             pos  = mul(data.localToWorld, float4(pos, 1.0)).xyz;
             norm = normalize(mul(norm, (float3x3)data.worldToLocal));
 
-            if (smData.indexOfRefraction != 0.0)
+            if (smData.baseIor != 0.0)
             {
+                float ior = smData.baseIor + smData.dispersion * invSqrWavelength;
                 // Generate new ray
                 bool isEnter = dot(rayDir, norm) < 0.0;
                 if (isEnter)
                 {
                     rayPos = pos - norm * 0.001;
-                    rayDir = refract(rayDir, norm, IOR_AIR / smData.indexOfRefraction);
+                    rayDir = refract(rayDir, norm, IOR_AIR / ior);
                     continue;
                 }
 
                 // Need to decided between refraction and TIR
-                float3 refractDir = refract(rayDir, -norm, smData.indexOfRefraction / IOR_AIR);
+                float3 refractDir = refract(rayDir, -norm, ior / IOR_AIR);
                 if (any(refractDir != 0.0))
                 {
                     // Refraction case
@@ -187,7 +216,7 @@ float4 GlassTrace(uint2 frag, float3 rayPos, float3 rayDir, int payloadType)
                 // Hit outside geometry
                 bool onSurface;
                 float4 screenSpaceColor = screenSampleWorldPos(pos, onSurface);
-                if (onSurface) return screenSpaceColor;
+                if (onSurface) return colorFilter4 * screenSpaceColor;
 
                 // In occluded geometry
                 FallbackPayload payload;
@@ -196,7 +225,9 @@ float4 GlassTrace(uint2 frag, float3 rayPos, float3 rayDir, int payloadType)
                 payload.submesh = submeshId;
                 payload.primitive = prim;
                 payload.barycentrics = bary;
+                payload.colorFilter = colorFilter;
                 payload.type = payloadType;
+                payload.padding = 0.0;
                 _OccludedRayBuffer.Append(payload);
 
                 // Output debug cyan
@@ -207,12 +238,12 @@ float4 GlassTrace(uint2 frag, float3 rayPos, float3 rayDir, int payloadType)
         {
             // Missed all geometry, use the skybox
             float3 skyboxDir = mul((float3x3)_SkyRotation, rayDir);
-            return _SkyboxTexture.SampleLevel(sampler_LinearClamp, skyboxDir, 0);
+            return colorFilter4 * _SkyboxTexture.SampleLevel(sampler_LinearClamp, skyboxDir, 0);
         }
     }
 
     // If we run out of rays, just output white
-    return float4(1.0, 1.0, 1.0, 1.0);
+    return colorFilter4;
 }
 #endif
 
@@ -220,8 +251,30 @@ float4 GlassTrace(uint2 frag, float3 rayPos, float3 rayDir, int payloadType)
 void RefractionSample(uint2 frag, float3 fragPos, float3 fragNorm, float3 viewDir)
 {
     float3 rayPos = fragPos - fragNorm * 0.001;
+    // TODO // Aaaah fuck, what am I supposed to do here?
+            // I guess I need to store IoR as part of the compaction data
     float3 rayDir = refract(viewDir, fragNorm, IOR_AIR / IOR_GLASS);
-    _RefractionOutputTexture[frag] = GlassTrace(frag, rayPos, rayDir, 0);
+
+    float invSqrWavelength = 1.0;
+    float3 colorFilter = float3(1.0, 1.0, 1.0);
+    float rng = random(uint3(frag, _FrameSeed));
+    if (rng < PROBABILITY_R)
+    {
+        invSqrWavelength = INV_SQR_WAVELENGTH_R;
+        colorFilter = float3(1.0/PROBABILITY_R, 0.0, 0.0);
+    }
+    else if (rng < PROBABILITY_R + PROBABILITY_G)
+    {
+        invSqrWavelength = INV_SQR_WAVELENGTH_G;
+        colorFilter = float3(0.0, 1.0/PROBABILITY_G, 0.0);
+    }
+    else // Assuming probabilities sum to 1.0
+    {
+        invSqrWavelength = INV_SQR_WAVELENGTH_B;
+        colorFilter = float3(0.0, 0.0, 1.0/PROBABILITY_B);
+    }
+
+    _RefractionOutputTexture[frag] = GlassTrace(frag, rayPos, rayDir, invSqrWavelength, colorFilter, 0);
 }
 #endif
 
@@ -230,7 +283,27 @@ void ReflectionSample(uint2 frag, float3 fragPos, float3 fragNorm, float3 viewDi
 {
     float3 rayPos = fragPos + fragNorm * 0.001;
     float3 rayDir = reflect(viewDir, fragNorm);
-    _ReflectionOutputTexture[frag] = GlassTrace(frag, rayPos, rayDir, 1);
+
+    float invSqrWavelength = 1.0;
+    float3 colorFilter = float3(1.0, 1.0, 1.0);
+    float rng = random(uint3(frag, _FrameSeed));
+    if (rng < PROBABILITY_R)
+    {
+        invSqrWavelength = INV_SQR_WAVELENGTH_R;
+        colorFilter = float3(1.0/PROBABILITY_R, 0.0, 0.0);
+    }
+    else if (rng < PROBABILITY_R + PROBABILITY_G)
+    {
+        invSqrWavelength = INV_SQR_WAVELENGTH_G;
+        colorFilter = float3(0.0, 1.0/PROBABILITY_G, 0.0);
+    }
+    else // Assuming probabilities sum to 1.0
+    {
+        invSqrWavelength = INV_SQR_WAVELENGTH_B;
+        colorFilter = float3(0.0, 0.0, 1.0/PROBABILITY_B);
+    }
+
+    _ReflectionOutputTexture[frag] = GlassTrace(frag, rayPos, rayDir, invSqrWavelength, colorFilter, 1);
 }
 #endif
 

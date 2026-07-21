@@ -14,12 +14,15 @@ namespace CallumNicholson.RaytraceGlassURP
 
     public struct SubmeshData
     {
-        public const int Size = 48;
+        public const int Size = 64;
 
         public int textureSlice;
         public int indexOffset;
         public int vertexOffset;
-        public float indexOfRefraction;
+        public float baseIor;
+        public float dispersion;
+
+        public Vector3 padding;
 
         public Vector4 baseColor;
         public Vector4 uvTransform;

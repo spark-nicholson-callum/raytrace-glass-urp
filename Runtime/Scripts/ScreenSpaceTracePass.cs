@@ -7,7 +7,7 @@ namespace CallumNicholson.RaytraceGlassURP
 {
     class ScreenSpaceTracePass : ScriptableRenderPass
     {
-        private const int FallbackSize = 32;
+        private const int FallbackSize = 48;
         private ComputeShader lensCompute;
         private Texture skybox;
         private int clearKernel;
@@ -202,6 +202,8 @@ namespace CallumNicholson.RaytraceGlassURP
                     context.cmd.SetRayTracingAccelerationStructure(data.Compute, data.TraceKernel, "_SceneRtas", data.Rtas);
                     context.cmd.SetComputeVectorParam(data.Compute, "_CameraPos", data.CameraPos);
                     context.cmd.SetComputeMatrixParam(data.Compute, "_SkyRotation", data.SkyRotation);
+
+                    context.cmd.SetComputeIntParam(data.Compute, "_FrameSeed", Time.frameCount);
 
                     context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_OccludedRayBuffer", data.OccludedRayBuffer);
 

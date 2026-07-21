@@ -25,6 +25,8 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
+    - _BaseIor: 2.3818
+    - _Dispersion: 0.0121
     - _IndexOfRefraction: 2.42
     m_Colors: []
   m_BuildTextureStacks: []

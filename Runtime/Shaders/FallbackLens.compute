@@ -148,7 +148,7 @@ void FallbackTrace(uint3 id : SV_DispatchThreadID)
     float surfaceReduction = 1.0 / (roughness * roughness + 1.0);
     float3 envSpecular = indirectSpecular * F_env * surfaceReduction;
 
-    float3 finalColor = directLight + ambientLight + envSpecular;
+    float3 finalColor = payload.colorFilter * (directLight + ambientLight + envSpecular);
 
     switch (payload.type)
     {

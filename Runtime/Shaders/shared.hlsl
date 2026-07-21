@@ -8,11 +8,14 @@ struct FallbackPayload
     uint submesh;           // 4
     uint primitive;         // 4
     float2 barycentrics;    // 8
-
+    float3 colorFilter;     // 12
     // 0 = refraction
     // 1 = reflection
     uint type;              // 4
-    // = 32 = 16 * 2 Bytes
+
+    float padding;          // 4
+
+    // = 48 = 16 * 3 Bytes
 };
 
 struct MeshInstanceData
@@ -31,11 +34,14 @@ struct SubmeshData
     int textureSlice;       // 4
     int indexOffset;        // 4
     int vertexOffset;       // 4
-    float indexOfRefraction;// 4
+    float baseIor;          // 4
+    float dispersion;       // 4
+
+    float3 padding;         // 12
 
     float4 baseColor;       // 16
     float4 uvTransform;     // 16
-    // = 48 = 16 * 3 Bytes
+    // = 64 = 16 * 4 Bytes
 };
 
 struct MeshVertexData
