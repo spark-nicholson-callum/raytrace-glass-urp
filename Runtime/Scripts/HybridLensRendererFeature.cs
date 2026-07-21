@@ -33,6 +33,7 @@ namespace CallumNicholson.RaytraceGlassURP
         [SerializeField] private ComputeShader lensComputeShader;
         [SerializeField] private ComputeShader fallbackComputeShader;
         [SerializeField] private Cubemap skybox;
+        [SerializeField] private Texture2D blueNoise;
 
         private LensGatherPass gatherPass;
         private ScreenSpaceTracePass tracePass;
@@ -53,7 +54,7 @@ namespace CallumNicholson.RaytraceGlassURP
             gatherPass = new LensGatherPass(lensComputeShader);
             gatherPass.renderPassEvent = RenderPassEvent.AfterRenderingOpaques;
 
-            tracePass = new ScreenSpaceTracePass(lensComputeShader, skybox);
+            tracePass = new ScreenSpaceTracePass(lensComputeShader, skybox, blueNoise);
             tracePass.renderPassEvent = RenderPassEvent.AfterRenderingOpaques + 1;
 
             fallbackTracePass = new FallbackTracePass(fallbackComputeShader, skybox);

@@ -10,13 +10,15 @@ namespace CallumNicholson.RaytraceGlassURP
         private const int FallbackSize = 48;
         private ComputeShader lensCompute;
         private Texture skybox;
+        private Texture2D blueNoise;
         private int clearKernel;
         private int setupKernel;
         private int traceKernel;
 
         private RTHandle skyboxHandle;
+        private RTHandle blueNoiseHandle;
 
-        public ScreenSpaceTracePass(ComputeShader shader, Texture skybox)
+        public ScreenSpaceTracePass(ComputeShader shader, Texture skybox, Texture2D blueNoise)
         {
             lensCompute = shader;
             clearKernel = lensCompute.FindKernel("ClearOutput");
@@ -24,16 +26,22 @@ namespace CallumNicholson.RaytraceGlassURP
             traceKernel = lensCompute.FindKernel("TraceLens");
 
             this.skybox = skybox;
+            this.blueNoise = blueNoise;
 
             if (skybox != null)
             {
                 skyboxHandle = RTHandles.Alloc(skybox);
+            }
+            if (blueNoise != null)
+            {
+                blueNoiseHandle = RTHandles.Alloc(blueNoise);
             }
         }
 
         public void Dispose()
         {
             if (skyboxHandle != null) skyboxHandle.Release();
+            if (blueNoiseHandle != null) blueNoiseHandle.Release();
         }
 
         private class PassData
@@ -58,6 +66,9 @@ namespace CallumNicholson.RaytraceGlassURP
             public TextureHandle SkyboxTexture;
             public BufferHandle ActivePixelsBuffer;
             public BufferHandle ArgsBuffer;
+
+            public TextureHandle BlueNoiseTexture;
+            public Vector2Int BlueNoiseSize;
 
             public Matrix4x4 ViewProj;
             public Matrix4x4 InverseViewProj;
@@ -146,6 +157,10 @@ namespace CallumNicholson.RaytraceGlassURP
                 passData.SkyboxTexture = renderGraph.ImportTexture(skyboxHandle);
                 builder.UseTexture(passData.SkyboxTexture, AccessFlags.Read);
 
+                passData.BlueNoiseTexture = renderGraph.ImportTexture(blueNoiseHandle);
+                builder.UseTexture(passData.BlueNoiseTexture, AccessFlags.Read);
+                passData.BlueNoiseSize = new Vector2Int(blueNoise.width, blueNoise.height);
+
                 // Buffers
                 passData.ActivePixelsBuffer = builder.UseBuffer(lensData.ActivePixelsBufferHandle, AccessFlags.Read);
                 passData.ArgsBuffer = builder.UseBuffer(argsHandle, AccessFlags.Write);
@@ -202,6 +217,9 @@ namespace CallumNicholson.RaytraceGlassURP
                     context.cmd.SetComputeBufferParam(data.Compute, data.TraceKernel, "_IndirectArgsBuffer", data.ArgsBuffer);
 
                     context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_SkyboxTexture", data.SkyboxTexture);
+
+                    context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_BlueNoiseTexture", data.BlueNoiseTexture);
+                    context.cmd.SetComputeIntParams(data.Compute, "_BlueNoiseSize", data.BlueNoiseSize.x, data.BlueNoiseSize.y);
 
                     context.cmd.SetComputeMatrixParam(data.Compute, "_ViewProjMatrix", data.ViewProj);
                     context.cmd.SetComputeMatrixParam(data.Compute, "_InverseViewProjMatrix", data.InverseViewProj);

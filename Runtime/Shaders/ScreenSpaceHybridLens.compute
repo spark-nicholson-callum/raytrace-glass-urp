@@ -10,6 +10,8 @@
 #define IOR_AIR 1.0
 #define IOR_GLASS 1.5
 
+#define GOLDEN_RATIO 0.6180339887
+
 #define INV_SQR_WAVELENGTH_R (1.0 / 0.650 / 0.650)
 #define INV_SQR_WAVELENGTH_G (1.0 / 0.532 / 0.532)
 #define INV_SQR_WAVELENGTH_B (1.0 / 0.473 / 0.473)
@@ -31,7 +33,11 @@ Texture2D<float> _CameraDepthTexture;
 Texture2D<float4> _CameraOpaqueTexture;
 TextureCube<float4> _SkyboxTexture;
 
+Texture2D<float4> _BlueNoiseTexture;
+int2 _BlueNoiseSize;
+
 SamplerState sampler_LinearClamp;
+SamplerState sampler_PointRepeat;
 
 RWStructuredBuffer<uint> _IndirectArgsBuffer;
 StructuredBuffer<uint2> _ActivePixelsBufferRead;
@@ -63,6 +69,13 @@ float InterleavedGradientNoise(float2 frag, float frame)
 
     float3 magic = float3(0.06711056, 0.00583715, 52.9829189);
     return frac(magic.z * frac(dot(frag + frameOffset, magic.xy)));
+}
+
+float TemporalBlueNoise(float2 frag, float frame)
+{
+    float2 uv = ((float2)frag + 0.5) / (float2)_BlueNoiseSize;
+    float staticNoise = _BlueNoiseTexture.SampleLevel(sampler_PointRepeat, uv, 0).r;
+    return frac(staticNoise + float(frame) * GOLDEN_RATIO);
 }
 
 [numthreads(8, 8, 1)]
@@ -252,7 +265,7 @@ void RefractionSample(uint2 frag, float3 fragPos, float3 fragNorm, float3 viewDi
 
     float invSqrWavelength;
     float3 colorFilter;
-    float rng = InterleavedGradientNoise(frag, _FrameSeed);
+    float rng = TemporalBlueNoise(frag, _FrameSeed);
     if (rng < PROBABILITY_R)
     {
         invSqrWavelength = INV_SQR_WAVELENGTH_R;
@@ -283,7 +296,7 @@ void ReflectionSample(uint2 frag, float3 fragPos, float3 fragNorm, float3 viewDi
 
     float invSqrWavelength;
     float3 colorFilter;
-    float rng = InterleavedGradientNoise(frag, _FrameSeed);
+    float rng = TemporalBlueNoise(frag, _FrameSeed);
     if (rng < PROBABILITY_R)
     {
         invSqrWavelength = INV_SQR_WAVELENGTH_R;
