@@ -54,21 +54,13 @@ StructuredBuffer<MeshVertexData> _GlobalVertices;
 
 int _DynamicMaxRays;
 
-float random(uint3 v)
+float InterleavedGradientNoise(float2 frag, float frame)
 {
-    v = v * 1664525u + 1013904223u;
+    // Cycle every 8 frames
+    float frameOffset = float(frame % 8) * 0.01;
 
-    v.x += v.y * v.z;
-    v.y += v.z * v.x;
-    v.z += v.x * v.y;
-
-    v ^= v >> 16u;
-
-    v.x += v.y * v.z;
-    v.y += v.z * v.x;
-    v.z += v.x * v.y;
-
-    return v.x / 4294967295.0;
+    float3 magic = float3(0.06711056, 0.00583715, 52.9829189);
+    return frac(magic.z * frac(dot(frag + frameOffset, magic.xy)));
 }
 
 [numthreads(8, 8, 1)]
@@ -257,7 +249,8 @@ void RefractionSample(uint2 frag, float3 fragPos, float3 fragNorm, float3 viewDi
 
     float invSqrWavelength = 1.0;
     float3 colorFilter = float3(1.0, 1.0, 1.0);
-    float rng = random(uint3(frag, _FrameSeed));
+    //float rng = random(uint3(frag, _FrameSeed));
+    float rng = InterleavedGradientNoise(frag, _FrameSeed);
     if (rng < PROBABILITY_R)
     {
         invSqrWavelength = INV_SQR_WAVELENGTH_R;
