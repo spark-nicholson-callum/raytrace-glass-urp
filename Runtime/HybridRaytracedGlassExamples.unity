@@ -1280,6 +1280,80 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 434633807}
   m_CullTransparentMesh: 1
+--- !u!1001 &707118032
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 993df82ff2722f741a73529eb7e38f72, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 993df82ff2722f741a73529eb7e38f72, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: -1.38
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 993df82ff2722f741a73529eb7e38f72, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0.03
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 993df82ff2722f741a73529eb7e38f72, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.7071068
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 993df82ff2722f741a73529eb7e38f72, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0.7071068
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 993df82ff2722f741a73529eb7e38f72, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 993df82ff2722f741a73529eb7e38f72, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 993df82ff2722f741a73529eb7e38f72, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: -90
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 993df82ff2722f741a73529eb7e38f72, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 993df82ff2722f741a73529eb7e38f72, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -7635826562936255635, guid: 993df82ff2722f741a73529eb7e38f72, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 6916d074efd53da4b8330823d060359d, type: 2}
+    - target: {fileID: 919132149155446097, guid: 993df82ff2722f741a73529eb7e38f72, type: 3}
+      propertyPath: m_Name
+      value: Emerald
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 993df82ff2722f741a73529eb7e38f72, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1151388028547126963, guid: 993df82ff2722f741a73529eb7e38f72, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 2.88
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 993df82ff2722f741a73529eb7e38f72, type: 3}
+--- !u!1 &707118033 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 993df82ff2722f741a73529eb7e38f72, type: 3}
+  m_PrefabInstance: {fileID: 707118032}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &713231714
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -1334,7 +1408,7 @@ PrefabInstance:
       objectReference: {fileID: 2100000, guid: 6916d074efd53da4b8330823d060359d, type: 2}
     - target: {fileID: 919132149155446097, guid: 10172f8440c5b5e4fb633bd8a261f10a, type: 3}
       propertyPath: m_Name
-      value: Gem
+      value: Diamond
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 10172f8440c5b5e4fb633bd8a261f10a, type: 3}
       propertyPath: m_IsActive
@@ -1542,9 +1616,12 @@ MonoBehaviour:
   - title: Biconvex Lens
     objects:
     - {fileID: 1425362967}
-  - title: Gem
+  - title: Diamond
     objects:
     - {fileID: 713231715}
+  - title: Emerald
+    objects:
+    - {fileID: 707118033}
   - title: Teapot
     objects:
     - {fileID: 1109283138}
@@ -1774,7 +1851,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 0}
   m_AnchoredPosition: {x: 0, y: 2}
-  m_SizeDelta: {x: 0, y: 500}
+  m_SizeDelta: {x: 0, y: 550}
   m_Pivot: {x: 0.5, y: 1}
 --- !u!114 &1123093014
 MonoBehaviour:
@@ -3878,5 +3955,6 @@ SceneRoots:
   - {fileID: 2093626886}
   - {fileID: 1425362966}
   - {fileID: 713231714}
+  - {fileID: 707118032}
   - {fileID: 1109283137}
   - {fileID: 1265527391}
