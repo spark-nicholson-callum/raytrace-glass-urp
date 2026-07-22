@@ -10,7 +10,7 @@ namespace CallumNicholson.RaytraceGlassURP
         private const int FallbackSize = 48;
         private ComputeShader lensCompute;
         private Texture skybox;
-        private Texture2D blueNoise;
+        private Texture2DArray blueNoise;
         private int clearKernel;
         private int setupKernel;
         private int traceKernel;
@@ -18,7 +18,7 @@ namespace CallumNicholson.RaytraceGlassURP
         private RTHandle skyboxHandle;
         private RTHandle blueNoiseHandle;
 
-        public ScreenSpaceTracePass(ComputeShader shader, Texture skybox, Texture2D blueNoise)
+        public ScreenSpaceTracePass(ComputeShader shader, Texture skybox, Texture2DArray blueNoise)
         {
             lensCompute = shader;
             clearKernel = lensCompute.FindKernel("ClearOutput");
@@ -68,7 +68,7 @@ namespace CallumNicholson.RaytraceGlassURP
             public BufferHandle ArgsBuffer;
 
             public TextureHandle BlueNoiseTexture;
-            public Vector2Int BlueNoiseSize;
+            public Vector3Int BlueNoiseSize;
 
             public Matrix4x4 ViewProj;
             public Matrix4x4 InverseViewProj;
@@ -159,7 +159,7 @@ namespace CallumNicholson.RaytraceGlassURP
 
                 passData.BlueNoiseTexture = renderGraph.ImportTexture(blueNoiseHandle);
                 builder.UseTexture(passData.BlueNoiseTexture, AccessFlags.Read);
-                passData.BlueNoiseSize = new Vector2Int(blueNoise.width, blueNoise.height);
+                passData.BlueNoiseSize = new Vector3Int(blueNoise.width, blueNoise.height, blueNoise.depth);
 
                 // Buffers
                 passData.ActivePixelsBuffer = builder.UseBuffer(lensData.ActivePixelsBufferHandle, AccessFlags.Read);
@@ -219,7 +219,7 @@ namespace CallumNicholson.RaytraceGlassURP
                     context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_SkyboxTexture", data.SkyboxTexture);
 
                     context.cmd.SetComputeTextureParam(data.Compute, data.TraceKernel, "_BlueNoiseTexture", data.BlueNoiseTexture);
-                    context.cmd.SetComputeIntParams(data.Compute, "_BlueNoiseSize", data.BlueNoiseSize.x, data.BlueNoiseSize.y);
+                    context.cmd.SetComputeIntParams(data.Compute, "_BlueNoiseSize", data.BlueNoiseSize.x, data.BlueNoiseSize.y, data.BlueNoiseSize.z);
 
                     context.cmd.SetComputeMatrixParam(data.Compute, "_ViewProjMatrix", data.ViewProj);
                     context.cmd.SetComputeMatrixParam(data.Compute, "_InverseViewProjMatrix", data.InverseViewProj);

@@ -33,7 +33,7 @@ namespace CallumNicholson.RaytraceGlassURP
         [SerializeField] private ComputeShader lensComputeShader;
         [SerializeField] private ComputeShader fallbackComputeShader;
         [SerializeField] private Cubemap skybox;
-        [SerializeField] private Texture2D blueNoise;
+        [SerializeField] private Texture2DArray blueNoise;
 
         private LensGatherPass gatherPass;
         private ScreenSpaceTracePass tracePass;
