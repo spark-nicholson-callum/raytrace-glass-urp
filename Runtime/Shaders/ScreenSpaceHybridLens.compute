@@ -14,9 +14,9 @@
 #define INV_SQR_WAVELENGTH_B (1.0 / 0.473 / 0.473)
 
 // These values are based on URPs medium TAA, they are pretty close but might need tweaking
-#define PROBABILITY_R (0.2)
-#define PROBABILITY_G (0.6)
-#define PROBABILITY_B (0.2)
+#define PROBABILITY_R (0.21)
+#define PROBABILITY_G (0.61)
+#define PROBABILITY_B (0.18)
 
 #define MAX_RAYS 32
 
@@ -52,6 +52,7 @@ float3 _CameraPos;
 float4x4 _SkyRotation;
 
 int _FrameSeed;
+bool _EnableChromaticAberration;
 
 AppendStructuredBuffer<FallbackPayload> _OccludedRayBuffer;
 
@@ -275,22 +276,32 @@ void RefractionSample(uint2 frag, float3 fragPos, float3 fragNorm, float3 viewDi
 
     float invSqrWavelength;
     float3 colorFilter;
-    float rng = TemporalBlueNoise(frag, _FrameSeed);
-    if (rng < PROBABILITY_R)
+
+    if (_EnableChromaticAberration)
     {
-        invSqrWavelength = INV_SQR_WAVELENGTH_R;
-        colorFilter = float3(1.0/PROBABILITY_R, 0.0, 0.0);
+        float rng = TemporalBlueNoise(frag, _FrameSeed);
+        if (rng < PROBABILITY_R)
+        {
+            invSqrWavelength = INV_SQR_WAVELENGTH_R;
+            colorFilter = float3(1.0/PROBABILITY_R, 0.0, 0.0);
+        }
+        else if (rng < PROBABILITY_R + PROBABILITY_G)
+        {
+            invSqrWavelength = INV_SQR_WAVELENGTH_G;
+            colorFilter = float3(0.0, 1.0/PROBABILITY_G, 0.0);
+        }
+        else // Assuming probabilities sum to 1.0
+        {
+            invSqrWavelength = INV_SQR_WAVELENGTH_B;
+            colorFilter = float3(0.0, 0.0, 1.0/PROBABILITY_B);
+        }
     }
-    else if (rng < PROBABILITY_R + PROBABILITY_G)
+    else
     {
         invSqrWavelength = INV_SQR_WAVELENGTH_G;
-        colorFilter = float3(0.0, 1.0/PROBABILITY_G, 0.0);
+        colorFilter = float3(1.0, 1.0, 1.0);
     }
-    else // Assuming probabilities sum to 1.0
-    {
-        invSqrWavelength = INV_SQR_WAVELENGTH_B;
-        colorFilter = float3(0.0, 0.0, 1.0/PROBABILITY_B);
-    }
+
     float ior = baseIor + dispersion * invSqrWavelength;
     float3 rayDir = refract(viewDir, fragNorm, IOR_AIR / ior);
 
@@ -306,21 +317,29 @@ void ReflectionSample(uint2 frag, float3 fragPos, float3 fragNorm, float3 viewDi
 
     float invSqrWavelength;
     float3 colorFilter;
-    float rng = TemporalBlueNoise(frag, _FrameSeed);
-    if (rng < PROBABILITY_R)
+    if (_EnableChromaticAberration)
     {
-        invSqrWavelength = INV_SQR_WAVELENGTH_R;
-        colorFilter = float3(1.0/PROBABILITY_R, 0.0, 0.0);
+        float rng = TemporalBlueNoise(frag, _FrameSeed);
+        if (rng < PROBABILITY_R)
+        {
+            invSqrWavelength = INV_SQR_WAVELENGTH_R;
+            colorFilter = float3(1.0/PROBABILITY_R, 0.0, 0.0);
+        }
+        else if (rng < PROBABILITY_R + PROBABILITY_G)
+        {
+            invSqrWavelength = INV_SQR_WAVELENGTH_G;
+            colorFilter = float3(0.0, 1.0/PROBABILITY_G, 0.0);
+        }
+        else // Assuming probabilities sum to 1.0
+        {
+            invSqrWavelength = INV_SQR_WAVELENGTH_B;
+            colorFilter = float3(0.0, 0.0, 1.0/PROBABILITY_B);
+        }
     }
-    else if (rng < PROBABILITY_R + PROBABILITY_G)
+    else
     {
         invSqrWavelength = INV_SQR_WAVELENGTH_G;
-        colorFilter = float3(0.0, 1.0/PROBABILITY_G, 0.0);
-    }
-    else // Assuming probabilities sum to 1.0
-    {
-        invSqrWavelength = INV_SQR_WAVELENGTH_B;
-        colorFilter = float3(0.0, 0.0, 1.0/PROBABILITY_B);
+        colorFilter = float3(1.0, 1.0, 1.0);
     }
 
     _ReflectionOutputTexture[frag] = GlassTrace(frag, rayPos, rayDir, invSqrWavelength, colorFilter, 1);
