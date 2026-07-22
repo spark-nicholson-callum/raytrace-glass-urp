@@ -30,6 +30,8 @@ Texture2D<float4> _LensMaterialBuffer;
 Texture2D<float> _CameraDepthTexture;
 Texture2D<float4> _CameraOpaqueTexture;
 TextureCube<float4> _SkyboxTexture;
+float3 _MainLightPosition;
+float3 _MainLightColor;
 
 Texture2DArray<float4> _BlueNoiseTexture;
 int3 _BlueNoiseSize;
@@ -246,7 +248,14 @@ float4 GlassTrace(uint2 frag, float3 rayPos, float3 rayDir, float invSqrWaveleng
         {
             // Missed all geometry, use the skybox
             float3 skyboxDir = mul((float3x3)_SkyRotation, rayDir);
-            return colorFilter4 * _SkyboxTexture.SampleLevel(sampler_LinearClamp, skyboxDir, 0);
+            float3 skyboxColor = _SkyboxTexture.SampleLevel(sampler_LinearClamp, skyboxDir, 0).rgb;
+
+            float sunSharpness = 500.0; // TODO // Should be a parameter
+            float lightAlignment = saturate(dot(rayDir, _MainLightPosition.xyz));
+            float sunPower = pow(lightAlignment, sunSharpness);
+            float3 sunColor = _MainLightColor.rgb * sunPower; // Boost this if you want
+
+            return colorFilter4 * float4(skyboxColor + sunColor, 1.0);
         }
     }
 

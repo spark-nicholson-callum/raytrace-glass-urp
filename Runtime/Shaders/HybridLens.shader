@@ -213,7 +213,6 @@ Shader "Custom/HybridLens"
                 float shininess = 256;
                 float3 specularHighlight = mainLight.color * pow(NdotH, shininess);
 
-
                 float3 finalColor = combinedColor + specularHighlight;
 
                 return float4(finalColor, 1.0);
