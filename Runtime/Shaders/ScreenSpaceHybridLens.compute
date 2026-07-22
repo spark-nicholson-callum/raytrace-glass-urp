@@ -216,6 +216,11 @@ float4 GlassTrace(uint2 frag, float3 rayPos, float3 rayDir, float invSqrWaveleng
                     rayPos = pos - norm * 0.001;
                     rayDir = reflect(rayDir, -norm);
                 }
+
+                float pathLength = length(rayPos - ray.Origin);
+                float3 absorption = (1.0 - smData.baseColor.rgb) * smData.density;
+                colorFilter *= exp(-absorption * pathLength);
+                colorFilter4 = float4(colorFilter, 1.0);
             }
             else
             {

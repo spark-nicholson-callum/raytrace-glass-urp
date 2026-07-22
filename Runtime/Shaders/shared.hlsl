@@ -36,8 +36,9 @@ struct SubmeshData
     int vertexOffset;       // 4
     float baseIor;          // 4
     float dispersion;       // 4
+    float density;          // 4
 
-    float3 padding;         // 12
+    float2 padding;         // 8
 
     float4 baseColor;       // 16
     float4 uvTransform;     // 16

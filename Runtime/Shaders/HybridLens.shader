@@ -2,6 +2,8 @@ Shader "Custom/HybridLens"
 {
     Properties
     {
+        _BaseColor ("Main Color", Color) = (1.0, 1.0, 1.0, 1.0)
+        _Density ("Optical Density", Float) = 0.0
         _BaseIor ("Base Index of Refraction", Float) = 1.511
         _Dispersion ("Dispersion", Float) = 0.00425
     }

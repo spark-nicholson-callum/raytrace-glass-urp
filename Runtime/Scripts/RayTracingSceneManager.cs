@@ -106,6 +106,7 @@ namespace CallumNicholson.RaytraceGlassURP
                     // 0.0 is a special value meaning not glass (it would break the math anyway)
                     float baseIor = 0.0f;
                     float dispersion = 0.0f;
+                    float density = 0.0f;
                     bool isGlass = (material.shader.name == "Custom/HybridLens");
                     if (isGlass)
                     {
@@ -113,6 +114,7 @@ namespace CallumNicholson.RaytraceGlassURP
                         baseIor = 1.5f;
                         if (material.HasProperty("_BaseIor")) baseIor = material.GetFloat("_BaseIor");
                         if (material.HasProperty("_Dispersion")) dispersion = material.GetFloat("_Dispersion");
+                        if (material.HasProperty("_Density")) density = material.GetFloat("_Density");
                     }
 
                     submeshData.Add(new SubmeshData
@@ -122,6 +124,7 @@ namespace CallumNicholson.RaytraceGlassURP
                         vertexOffset = vertexData.Count,
                         baseIor = baseIor,
                         dispersion = dispersion,
+                        density = density,
                         baseColor = baseColor.linear,
                         uvTransform = uvTransform,
                     });

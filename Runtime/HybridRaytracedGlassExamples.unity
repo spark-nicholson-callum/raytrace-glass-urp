@@ -1331,7 +1331,7 @@ PrefabInstance:
     - target: {fileID: -7635826562936255635, guid: 993df82ff2722f741a73529eb7e38f72, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
-      objectReference: {fileID: 2100000, guid: 6916d074efd53da4b8330823d060359d, type: 2}
+      objectReference: {fileID: 2100000, guid: 2755fb2eb7794d94bbeac31adaf25046, type: 2}
     - target: {fileID: 919132149155446097, guid: 993df82ff2722f741a73529eb7e38f72, type: 3}
       propertyPath: m_Name
       value: Emerald

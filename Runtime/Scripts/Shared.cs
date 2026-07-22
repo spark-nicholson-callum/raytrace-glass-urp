@@ -21,8 +21,9 @@ namespace CallumNicholson.RaytraceGlassURP
         public int vertexOffset;
         public float baseIor;
         public float dispersion;
+        public float density;
 
-        public Vector3 padding;
+        public Vector2 padding;
 
         public Vector4 baseColor;
         public Vector4 uvTransform;
