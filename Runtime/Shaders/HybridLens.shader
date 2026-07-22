@@ -137,6 +137,7 @@ Shader "Custom/HybridLens"
             #pragma vertex vert
             #pragma fragment frag
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
             struct Attributes
             {
@@ -203,7 +204,19 @@ Shader "Custom/HybridLens"
 
                 float3 combinedColor = lerp(refractionColor, reflectionColor * 1.5, fresnel);
 
-                return float4(combinedColor, 1.0);
+                // Calculate standard blinn-phong specular lighting
+                Light mainLight = GetMainLight();
+                float3 halfVector = normalize(mainLight.direction + viewDir);
+                float NdotH = saturate(dot(normal, halfVector));
+
+                // Probably make this a parameter
+                float shininess = 256;
+                float3 specularHighlight = mainLight.color * pow(NdotH, shininess);
+
+
+                float3 finalColor = combinedColor + specularHighlight;
+
+                return float4(finalColor, 1.0);
             }
 
             ENDHLSL

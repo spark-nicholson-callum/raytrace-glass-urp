@@ -29,7 +29,7 @@ Material:
     - _Density: 2.5
     - _Dispersion: 0.00425
     m_Colors:
-    - _BaseColor: {r: 0.14119627, g: 0.7924528, b: 0.12335351, a: 1}
+    - _BaseColor: {r: 0.7322693, g: 0.9433962, b: 0.7253471, a: 1}
     - _MainColor: {r: 0.11721031, g: 0.6981132, b: 0.10208259, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
