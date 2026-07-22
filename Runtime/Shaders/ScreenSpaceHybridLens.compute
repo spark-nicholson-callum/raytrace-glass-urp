@@ -8,18 +8,15 @@
 #include "shared.hlsl"
 
 #define IOR_AIR 1.0
-#define IOR_GLASS 1.5
-
-#define GOLDEN_RATIO 0.6180339887
 
 #define INV_SQR_WAVELENGTH_R (1.0 / 0.650 / 0.650)
 #define INV_SQR_WAVELENGTH_G (1.0 / 0.532 / 0.532)
 #define INV_SQR_WAVELENGTH_B (1.0 / 0.473 / 0.473)
 
-// These values are based on URPs TAA implementation, they are pretty close but might need tweaking
-#define PROBABILITY_R (0.415/2)
-#define PROBABILITY_G (0.585)
-#define PROBABILITY_B (0.415/2)
+// These values are based on URPs medium TAA, they are pretty close but might need tweaking
+#define PROBABILITY_R (0.2)
+#define PROBABILITY_G (0.6)
+#define PROBABILITY_B (0.2)
 
 #define MAX_RAYS 32
 
