@@ -26,7 +26,7 @@ Material:
     m_Ints: []
     m_Floats:
     - _BaseIor: 1.5111
-    - _Density: 2.5
+    - _Density: 1.5
     - _Dispersion: 0.00425
     m_Colors:
     - _BaseColor: {r: 0.7322693, g: 0.9433962, b: 0.7253471, a: 1}
